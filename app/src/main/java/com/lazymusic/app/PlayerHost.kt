@@ -54,6 +54,9 @@ class PlayerHost(private val context: Context) : Player.Listener {
             c.addListener(this)
             connected = true
             syncFromPlayer(c)
+            // Вернулись в приложение, а плеер стоит с ошибкой: человек мог
+            // только что войти в YouTube или сменить сервер VPN — пробуем сразу
+            if (c.playerError != null && c.playWhenReady) c.prepare()
         }, ContextCompat.getMainExecutor(context))
     }
 

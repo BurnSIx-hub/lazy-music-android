@@ -76,9 +76,11 @@ import kotlin.coroutines.resume
  *
  * - Пароль не читает и не хранит: он вводится на странице Google, а код
  *   здесь заглядывает только на страницу списка, и только за строками.
- * - Cookies наружу не достаёт и никуда не передаёт. Вход живёт в хранилище
- *   этого встроенного браузера, чтобы в следующий раз не входить заново;
- *   кнопка «Выйти» стирает его целиком.
+ * - Cookies наружу не передаёт. Вход живёт в хранилище этого встроенного
+ *   браузера, чтобы в следующий раз не входить заново; кнопка «Выйти»
+ *   стирает его целиком. С 2026-10-18 его видит ещё yt-dlp на этом же
+ *   телефоне — только когда YouTube требует подтвердить, что не бот
+ *   ([YtLogin]); по сети вход по-прежнему никуда не уходит.
  * - Мостов из страницы в приложение (`addJavascriptInterface`) нет: всё
  *   чтение идёт вызовами отсюда туда, страница приложению ничего прислать
  *   не может.
@@ -196,6 +198,8 @@ class YtMusicActivity : ComponentActivity() {
     override fun onPause() {
         watch?.cancel()
         web?.onPause()
+        // Вход — на диск сразу: им пользуется и yt-dlp (YtLogin)
+        CookieManager.getInstance().flush()
         super.onPause()
     }
 
@@ -268,6 +272,8 @@ class YtMusicActivity : ComponentActivity() {
     private fun signOut() {
         work?.cancel()
         CookieManager.getInstance().removeAllCookies(null)
+        // yt-dlp тоже забывает вход — см. YtLogin
+        YtLogin.forget(this)
         WebStorage.getInstance().deleteAllData()
         web?.apply {
             clearHistory()

@@ -142,6 +142,12 @@ fun PlaqueHost() {
 /** Сколько знаков кнопок умещается рядом с текстом плашки; длиннее — под ним. */
 private const val BUTTONS_BESIDE = 16
 
+/**
+ * Заголовок длиннее этого с двумя кнопками рядом обрезается («YouTube просит
+ * подтвердить, что вы не…», S23) — тогда кнопки тоже под текстом.
+ */
+private const val TEXT_BESIDE = 30
+
 @Composable
 private fun PlaqueButton(a: Plaque.Action) {
     TextButton(onClick = a.onClick) {
@@ -173,7 +179,8 @@ private fun PlaqueView(p: Plaque) {
         // Длинные кнопки («Закрыть» и «Что не нашлось») рядом с текстом
         // оставляют ему узкую колонку, и заголовок обрезается (S23) —
         // такие встают отдельной строкой под текстом
-        val below = p.actions.sumOf { it.label.length } > BUTTONS_BESIDE
+        val below = p.actions.sumOf { it.label.length } > BUTTONS_BESIDE ||
+            p.actions.size > 1 && p.text.length > TEXT_BESIDE
         Column {
             Row(
                 Modifier.fillMaxWidth().padding(start = 14.dp, end = 4.dp, top = 8.dp, bottom = if (below) 0.dp else 6.dp),

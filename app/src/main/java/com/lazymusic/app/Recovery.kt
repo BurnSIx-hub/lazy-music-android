@@ -35,6 +35,12 @@ import androidx.media3.common.Player
  * - **сеть** — трек не виноват, поэтому не пропускаем: пробуем с растущей
  *   паузой, а потом ждём, пока сеть не сменится или не вернётся. Иначе
  *   тоннель в метро съедал бы очередь по треку за раз;
+ * - **проверка на бота** («Sign in to confirm you're not a bot») — то же,
+ *   что сеть: YouTube не пускает весь адрес, а не один трек, и следующий
+ *   упрётся в то же самое. Раньше плеер перелистывал трек за треком, пока
+ *   человек ждал музыку (у знакомой с VPN 2026-10-18). Теперь стоит на
+ *   месте, пробует снова с паузой и сразу — при смене сети: другой сервер
+ *   VPN для телефона и есть другая сеть;
  * - **остальное** — пара попыток и переход к следующему, но не больше
  *   [MAX_SKIPS] подряд: если не открывается ничего, беда общая, и молча
  *   перелистать всю очередь было бы хуже, чем остановиться.
@@ -199,8 +205,10 @@ class Recovery(
         attempts++
 
         val gone = generateSequence<Throwable>(error) { it.cause }.any { it is TrackUnavailable }
-        val net = !gone && (!online || error.errorCode == NET_FAILED ||
+        val bot = !gone && YtLogin.isBotCheck(text)
+        val net = !gone && (bot || !online || error.errorCode == NET_FAILED ||
             error.errorCode == NET_TIMEOUT || NET_WORDS.any { text.contains(it, ignoreCase = true) })
+        if (bot) Diag.w("YouTube просит подтвердить, что не бот, — дело в адресе, не в треке; не перелистываю")
 
         when {
             net && !online -> Diag.i("сети нет — жду, когда вернётся")

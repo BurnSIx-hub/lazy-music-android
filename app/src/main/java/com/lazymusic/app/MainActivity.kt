@@ -154,6 +154,11 @@ class MainActivity : ComponentActivity() {
             intent.getStringExtra("yandex_api")?.let { YandexImport.debugApi = it }
             // Проверка запасного пути добычи: `--ez fast_off true`
             if (intent.getBooleanExtra("fast_off", false)) Engine.pauseFast()
+            // Проверка входа для yt-dlp: `--ez bot_mode true` — как будто YouTube
+            // потребовал подтвердить, что не бот
+            if (intent.getBooleanExtra("bot_mode", false) && YtLogin.botCheck(this) == null) YtLogin.ask(this)
+            // Как выглядит просьба войти: `--ez ask_login true`
+            if (intent.getBooleanExtra("ask_login", false)) YtLogin.ask(this)
         }
         setContent { LazyMusicTheme { Shell() } }
     }

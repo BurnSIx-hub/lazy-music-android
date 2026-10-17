@@ -13,6 +13,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import java.io.File
 import java.io.FileNotFoundException
 import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
@@ -231,8 +232,10 @@ object StreamUrls {
     private fun resolve(context: Context, videoId: String): String {
         val born = epoch.get()
         val started = SystemClock.elapsedRealtime()
-        val extract = { fast: Boolean ->
-            lastFast[videoId] = fast
+        // jar — файл со входом в YouTube (см. YtLogin); с ним только обычный
+        // путь: visionos cookies не принимает
+        val extract = { fast: Boolean, jar: File? ->
+            lastFast[videoId] = fast && jar == null
             val request = YoutubeDLRequest("https://www.youtube.com/watch?v=$videoId").apply {
                 addOption("-f", "bestaudio[ext=m4a]/bestaudio")
                 addOption("--no-playlist")
@@ -240,13 +243,33 @@ object StreamUrls {
                 // Предупреждения (ffmpeg нет, «No title found» у visionos)
                 // заслоняли в тексте ошибки саму причину
                 addOption("--no-warnings")
-                if (fast) addOption("--extractor-args", Engine.FAST_CLIENT)
+                if (jar != null) addOption("--cookies", jar.absolutePath)
+                else if (fast) addOption("--extractor-args", Engine.FAST_CLIENT)
             }
             Engine.extracting { YoutubeDL.getInstance().getInfo(request) }
         }
         val info = try {
-            // Ролику нужен свой путь — им и идём, без запасного
-            prefer[videoId]?.let { extract(it) } ?: Engine.fastFirst(videoId, extract)
+            val jar = YtLogin.jarIfNeeded(context)
+            try {
+                when {
+                    jar != null -> extract(false, jar)
+                    // Ролику нужен свой путь — им и идём, без запасного
+                    prefer[videoId] != null -> extract(prefer.getValue(videoId), null)
+                    else -> Engine.fastFirst(videoId) { extract(it, null) }
+                }
+            } catch (t: Throwable) {
+                if (t is InterruptedException || t is java.util.concurrent.CancellationException) throw t
+                if (jar != null || !YtLogin.isBotCheck(Diag.chain(t, 4000))) throw t
+                // YouTube требует подтвердить, что не бот, — с этим адресом
+                // без входа не пустит. Вход есть — сразу со входом; нет — подсказать
+                val login = YtLogin.botCheck(context)
+                if (login == null) {
+                    YtLogin.ask(context)
+                    throw t
+                }
+                Diag.w("$videoId — YouTube просит подтвердить, что не бот; беру со входом")
+                extract(false, login)
+            }
         } catch (t: Throwable) {
             val why = Diag.chain(t, 4000)
             Diag.w("$videoId — yt-dlp не отдал поток: ${Diag.cause(t)}")

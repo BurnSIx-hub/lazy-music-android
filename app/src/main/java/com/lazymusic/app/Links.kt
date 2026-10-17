@@ -65,6 +65,7 @@ object Links {
             addOption("--no-playlist")
             addOption("--no-warnings")
             addOption("--skip-download")
+            YtLogin.jarIfNeeded(context)?.let { addOption("--cookies", it.absolutePath) }
         }
         val info = try {
             Engine.extracting { YoutubeDL.getInstance().getInfo(request) }

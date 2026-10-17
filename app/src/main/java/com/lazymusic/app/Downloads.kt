@@ -53,7 +53,9 @@ object Downloads {
             try {
                 val dir = Cache.dir(app)
                 // Быстрым путём, без JS, — см. Engine.FAST_CLIENT; не вышло — обычным
-                Engine.fastFirst(track.id) { fast ->
+                // YouTube требовал проверку на бота — качаем со входом (YtLogin)
+                val jar = YtLogin.jarIfNeeded(app)
+                val run = { fast: Boolean ->
                     // Скачивание сняли — быстрый путь потому и оборвался
                     if (!fast && !isRunning(track.id)) throw java.io.IOException("скачивание снято")
                     val request = YoutubeDLRequest(
@@ -65,7 +67,8 @@ object Downloads {
                         // Качает yt-dlp сам, и по IPv6 до серверов со звуком он
                         // на мобильной сети не дозвонится так же, как плеер
                         addOption(Engine.IPV4)
-                        if (fast) addOption("--extractor-args", Engine.FAST_CLIENT)
+                        if (jar != null) addOption("--cookies", jar.absolutePath)
+                        else if (fast) addOption("--extractor-args", Engine.FAST_CLIENT)
                         // Имя файла — идентификатор ролика: по нему кэш и ищется
                         addOption("-o", File(dir, "%(id)s.%(ext)s").absolutePath)
                     }
@@ -79,6 +82,7 @@ object Downloads {
                         }
                     }
                 }
+                if (jar != null) run(false) else Engine.fastFirst(track.id, run)
 
                 val file = Cache.find(app, track.id)
                 if (file == null) {
