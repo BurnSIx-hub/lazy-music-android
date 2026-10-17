@@ -1,0 +1,46 @@
+[versions]
+agp = "9.4.0"
+kotlin = "2.4.20"
+media3 = "1.11.0"
+# Последний выпуск — 0.18.1 (июнь 2025). Обёртка застоялась, но сам yt-dlp
+# внутри обновляется в рантайме через YoutubeDL.updateYoutubeDL().
+youtubedl = "0.18.1"
+coroutines = "1.10.2"
+coil = "2.7.0"
+coreKtx = "1.15.0"
+appcompat = "1.7.0"
+lifecycle = "2.10.0"
+# 2026.09.00 тянет Compose 1.12, а тот требует compileSdk 37 — у Unity его нет
+composeBom = "2026.06.01"
+activityCompose = "1.13.0"
+# Только для проверки сверки импорта на ПК (src/test): org.json в Android
+# зашит в систему, а на обычной Java его нет
+junit = "4.13.2"
+orgJson = "20240303"
+
+[libraries]
+androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
+androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "appcompat" }
+androidx-lifecycle-runtime = { module = "androidx.lifecycle:lifecycle-runtime-ktx", version.ref = "lifecycle" }
+kotlinx-coroutines = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
+
+media3-exoplayer = { module = "androidx.media3:media3-exoplayer", version.ref = "media3" }
+media3-session = { module = "androidx.media3:media3-session", version.ref = "media3" }
+# Сетевой слой плеера на OkHttp: штатный не даёт выбрать семейство адресов.
+# Сам OkHttp в сборке уже есть — его тянет Coil
+media3-datasource-okhttp = { module = "androidx.media3:media3-datasource-okhttp", version.ref = "media3" }
+
+youtubedl-library = { module = "io.github.junkfood02.youtubedl-android:library", version.ref = "youtubedl" }
+coil-compose = { module = "io.coil-kt:coil-compose", version.ref = "coil" }
+compose-material-icons = { module = "androidx.compose.material:material-icons-extended" }
+
+compose-bom = { module = "androidx.compose:compose-bom", version.ref = "composeBom" }
+compose-material3 = { module = "androidx.compose.material3:material3" }
+compose-ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview" }
+activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activityCompose" }
+junit = { module = "junit:junit", version.ref = "junit" }
+org-json = { module = "org.json:json", version.ref = "orgJson" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Адаптивная иконка «ленивый эквалайзер»: два столбика стоят, третий
+    улёгся. Система сама обрезает её по форме, которую выбрал лаунчер, —
+    круг, квадрат со скруглением, что угодно. Поэтому столбики на переднем
+    слое уложены в безопасную зону 66dp из 108: при круглой маске видна
+    только середина. Исходники — art/*.svg в репозитории lazy-music-pc.
+
+    monochrome — для тем Android 13: там от иконки берут один силуэт и
+    красят его в цвет обоев.
+-->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@drawable/ic_launcher_background" />
+    <foreground android:drawable="@mipmap/ic_launcher_foreground" />
+    <monochrome android:drawable="@mipmap/ic_launcher_monochrome" />
+</adaptive-icon>
