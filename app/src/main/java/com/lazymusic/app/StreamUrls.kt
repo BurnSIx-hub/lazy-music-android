@@ -96,6 +96,15 @@ object StreamUrls {
     private val ready = ConcurrentHashMap<String, Entry>()
     private val running = ConcurrentHashMap<String, Deferred<String>>()
 
+    /** Каким путём добыта последняя ссылка ролика: true — быстрым (visionos). */
+    private val lastFast = ConcurrentHashMap<String, Boolean>()
+
+    /**
+     * Ролики, которым нужен свой путь, — см. [otherWay]. Живёт до конца
+     * процесса: чем ролик не угодил клиенту, со временем может и пройти.
+     */
+    private val prefer = ConcurrentHashMap<String, Boolean>()
+
     /**
      * Номер «эпохи сети». Растёт при каждой смене сети; ссылка, которую
      * начали добывать при прежней, в запас уже не попадает — она привязана
@@ -157,6 +166,28 @@ object StreamUrls {
         }
     }
 
+    /**
+     * Ссылку другим путём — быстрым вместо обычного или наоборот.
+     *
+     * Зовётся, когда YouTube отверг и свежую ссылку: значит, дело не в
+     * её возрасте, а в клиенте, который её выдал. Бывает это с отдельными
+     * роликами: «Lou Bliss — Killing Butterflies» 2026-10-18 обычным путём
+     * давал 403 раз за разом, а visionos — рабочую ссылку; у других роликов
+     * бывает наоборот. Раньше обычный путь включался, только если быстрый
+     * не выдавал ссылки вовсе, — а выдавал он исправно, просто мёртвую, и
+     * трек не играл даже после перезапуска.
+     *
+     * Сработавший путь запоминается для ролика — и упреждающая добыча, и
+     * следующее открытие сразу идут им.
+     */
+    fun otherWay(context: Context, videoId: String): String {
+        val fast = !(lastFast[videoId] ?: Engine.fastClient)
+        Diag.w("$videoId — отвергли и свежую ссылку, беру ${if (fast) "быстрым" else "обычным"} путём")
+        prefer[videoId] = fast
+        ready.remove(videoId)
+        return resolve(context, videoId)
+    }
+
     /** Забыть ссылку молча. */
     fun forget(videoId: String) {
         ready.remove(videoId)
@@ -200,23 +231,29 @@ object StreamUrls {
     private fun resolve(context: Context, videoId: String): String {
         val born = epoch.get()
         val started = SystemClock.elapsedRealtime()
-        val info = try {
-            Engine.fastFirst(videoId) { fast ->
-                val request = YoutubeDLRequest("https://www.youtube.com/watch?v=$videoId").apply {
-                    addOption("-f", "bestaudio[ext=m4a]/bestaudio")
-                    addOption("--no-playlist")
-                    addOption(Engine.IPV4)
-                    if (fast) addOption("--extractor-args", Engine.FAST_CLIENT)
-                }
-                Engine.extracting { YoutubeDL.getInstance().getInfo(request) }
+        val extract = { fast: Boolean ->
+            lastFast[videoId] = fast
+            val request = YoutubeDLRequest("https://www.youtube.com/watch?v=$videoId").apply {
+                addOption("-f", "bestaudio[ext=m4a]/bestaudio")
+                addOption("--no-playlist")
+                addOption(Engine.IPV4)
+                // Предупреждения (ffmpeg нет, «No title found» у visionos)
+                // заслоняли в тексте ошибки саму причину
+                addOption("--no-warnings")
+                if (fast) addOption("--extractor-args", Engine.FAST_CLIENT)
             }
+            Engine.extracting { YoutubeDL.getInstance().getInfo(request) }
+        }
+        val info = try {
+            // Ролику нужен свой путь — им и идём, без запасного
+            prefer[videoId]?.let { extract(it) } ?: Engine.fastFirst(videoId, extract)
         } catch (t: Throwable) {
-            val why = Diag.chain(t, 300)
-            Diag.w("$videoId — yt-dlp не отдал поток: $why")
+            val why = Diag.chain(t, 4000)
+            Diag.w("$videoId — yt-dlp не отдал поток: ${Diag.cause(t)}")
             if (GONE.any { why.contains(it, ignoreCase = true) }) {
                 throw TrackUnavailable("ролик недоступен: ${t.message}")
             }
-            throw IOException("yt-dlp не отдал поток для $videoId: ${t.message}", t)
+            throw IOException("yt-dlp не отдал поток для $videoId: ${Diag.cause(t)}", t)
         }
         val url = info.url?.takeIf { it.isNotBlank() }
             ?: throw IOException("yt-dlp вернул ответ без ссылки для $videoId")

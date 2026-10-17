@@ -19,11 +19,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DownloadDone
@@ -47,7 +49,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -78,8 +82,8 @@ fun LibraryScreen(
     onChanged: () -> Unit,
     onImportLikes: () -> Unit
 ) {
-    var opened by remember { mutableStateOf<String?>(null) }
-    var showCached by remember { mutableStateOf(false) }
+    var opened by rememberSaveable { mutableStateOf<String?>(null) }
+    var showCached by rememberSaveable { mutableStateOf(false) }
     var names by remember { mutableStateOf(emptyList<String>()) }
     var creating by remember { mutableStateOf(false) }
 
@@ -108,7 +112,9 @@ fun LibraryScreen(
 
     val current = opened
     if (current != null) {
-        PlaylistDetail(
+        // Своё состояние у каждого плейлиста: прокрутка и строка поиска
+        // одного не переезжают в другой
+        key(current) { PlaylistDetail(
             name = current,
             revision = revision,
             cachedIds = cachedIds,
@@ -118,7 +124,7 @@ fun LibraryScreen(
             onTrackMenu = onTrackMenu,
             onChanged = onChanged,
             onImportLikes = onImportLikes
-        )
+        ) }
         return
     }
 
@@ -294,6 +300,13 @@ private fun PlaylistDetail(
     var tracks by remember { mutableStateOf(emptyList<Track>()) }
     var confirmDelete by remember { mutableStateOf(false) }
     val liked = name == Likes.LIST
+    // Поиск внутри плейлиста — по названию и исполнителю (см. [Find])
+    var find by rememberSaveable { mutableStateOf("") }
+    val shown = remember(tracks, find) {
+        if (find.isBlank()) tracks.indices.toList()
+        else tracks.indices.filter { Find.matches(tracks[it], find) }
+    }
+    val focus = LocalFocusManager.current
 
     // Понравившееся меняется и мимо этого экрана — 👍 в уведомлении,
     // при погашенном дисплее. Поэтому за ним следим ещё и по самим лайкам
@@ -310,7 +323,7 @@ private fun PlaylistDetail(
                 Icon(Icons.Default.ArrowBack, contentDescription = "Назад")
             }
             Column(Modifier.weight(1f)) {
-                Text(name, style = MaterialTheme.typography.titleLarge, maxLines = 1)
+                MarqueeText(name, style = MaterialTheme.typography.titleLarge)
                 Text(
                     trackCount(tracks.size),
                     style = MaterialTheme.typography.bodySmall,
@@ -337,14 +350,41 @@ private fun PlaylistDetail(
             }
         }
 
+        // Строка поиска — там, где листать уже долго
+        if (tracks.size > FIND_FROM) {
+            OutlinedTextField(
+                value = find,
+                onValueChange = { find = it },
+                placeholder = { Text("Поиск") },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                trailingIcon = {
+                    if (find.isNotEmpty()) {
+                        IconButton(onClick = { find = ""; focus.clearFocus() }) {
+                            Icon(Icons.Default.Close, contentDescription = "Закрыть")
+                        }
+                    }
+                },
+                singleLine = true,
+                shape = RoundedCornerShape(28.dp),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = { focus.clearFocus() }),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)
+            )
+        }
+
         if (tracks.isEmpty()) {
             EmptyHint(
                 if (liked) "Здесь пусто.\nЛайкните трек или импортируйте с YouTube."
                 else "Здесь пусто.\nДобавьте треки из поиска — кнопка «Ещё» у трека."
             )
+        } else if (shown.isEmpty()) {
+            EmptyHint("Ничего не нашлось.")
         } else {
             LazyColumn(Modifier.fillMaxSize()) {
-                itemsIndexed(tracks, key = { _, t -> t.id }) { index, track ->
+                // Найденное играет весь плейлист с этого места, а не одни
+                // находки: после трека музыка идёт дальше по плейлисту
+                items(shown, key = { tracks[it].id }) { index ->
+                    val track = tracks[index]
                     TrackRow(
                         track = track,
                         isCurrent = track.id == currentId,
@@ -389,6 +429,8 @@ fun SearchScreen(
     query: String,
     onQueryChange: (String) -> Unit,
     hints: List<String>,
+    ownHints: List<Find.Hit>,
+    onOwnHint: (Find.Hit) -> Unit,
     onUseHint: (String) -> Unit,
     playlistUrl: String,
     onPlaylistUrlChange: (String) -> Unit,
@@ -451,35 +493,14 @@ fun SearchScreen(
             // (на S23 её край примерно на 1125 из 2340), и список, выросший
             // под неё, оказывается не просто некрасивым — нижние строки
             // просто не нажать, касание уходит клавиатуре. Проверено.
-            if (queryFocused && hints.isNotEmpty()) {
+            if (queryFocused && (hints.isNotEmpty() || ownHints.isNotEmpty())) {
                 Spacer(Modifier.height(4.dp))
-                Card(Modifier.fillMaxWidth().heightIn(max = 184.dp)) {
-                    Column(Modifier.verticalScroll(rememberScrollState())) {
-                        hints.forEach { hint ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { focus.clearFocus(); onUseHint(hint) }
-                                    .padding(horizontal = 14.dp, vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    Icons.Default.Search,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(Modifier.width(12.dp))
-                                Text(
-                                    text = hint,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                        }
-                    }
-                }
+                HintCard(
+                    own = ownHints,
+                    hints = hints,
+                    onOwn = { focus.clearFocus(); onOwnHint(it) },
+                    onHint = { focus.clearFocus(); onUseHint(it) }
+                )
             }
 
             // Подпись над полем, а не в его рамке: там на S23 помещается
@@ -620,3 +641,6 @@ fun trackCount(n: Int): String {
     }
     return "$n $form"
 }
+
+/** Со скольких треков у плейлиста появляется строка поиска. */
+private const val FIND_FROM = 10

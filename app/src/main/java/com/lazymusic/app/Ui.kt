@@ -261,20 +261,16 @@ fun MiniPlayer(host: PlayerHost, onLike: (Track) -> Unit, onOpen: () -> Unit) {
             ) {
                 Artwork(track.artworkUrl, 40)
                 Column(Modifier.weight(1f)) {
-                    Text(
+                    MarqueeText(
                         text = track.title,
                         style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        fontWeight = FontWeight.Medium
                     )
                     if (track.artist.isNotBlank()) {
-                        Text(
+                        MarqueeText(
                             text = track.artist,
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }

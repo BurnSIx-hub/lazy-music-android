@@ -59,6 +59,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.RadioButton
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -101,6 +102,16 @@ class MainActivity : ComponentActivity() {
 
     /** Подсказки под строкой поиска и задача, которая их тянет. */
     private var hints by mutableStateOf(emptyList<String>())
+
+    /** Свои треки под набранное — в подсказках идут первыми. */
+    private var ownHints by mutableStateOf(emptyList<Find.Hit>())
+
+    /**
+     * С какой вкладки пришли на «Сейчас». «Назад» возвращает туда: включил
+     * песню из поиска — и обратно к тем же находкам, а не на «Главную»
+     * с пустой строкой (жалоба пользователя 2026-10-18).
+     */
+    private var cameFrom by mutableStateOf<Tab?>(null)
     private var hintJob: kotlinx.coroutines.Job? = null
 
     // Прочее состояние экранов
@@ -141,6 +152,8 @@ class MainActivity : ComponentActivity() {
         // `am start -n … --es yandex_api http://127.0.0.1:8765` при `adb reverse`
         if (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0) {
             intent.getStringExtra("yandex_api")?.let { YandexImport.debugApi = it }
+            // Проверка запасного пути добычи: `--ez fast_off true`
+            if (intent.getBooleanExtra("fast_off", false)) Engine.pauseFast()
         }
         setContent { LazyMusicTheme { Shell() } }
     }
@@ -204,6 +217,12 @@ class MainActivity : ComponentActivity() {
         settingsOpen = false
     }
 
+    /** На «Сейчас» — с памятью, откуда пришли (см. [cameFrom]). */
+    private fun goNow() {
+        if (tab != Tab.NOW) cameFrom = tab
+        goTab(Tab.NOW)
+    }
+
     /** Открывает адрес в браузере — для подсказки, где взять ключ. */
     private fun openInBrowser(url: String) {
         runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
@@ -263,7 +282,7 @@ class MainActivity : ComponentActivity() {
         val picks = Recommend.tracks
         if (index !in picks.indices) return
         host.play(picks, index)
-        tab = Tab.NOW
+        goNow()
     }
 
     override fun onStop() {
@@ -311,9 +330,12 @@ class MainActivity : ComponentActivity() {
         hintJob?.cancel()
         if (text.isBlank()) {
             hints = emptyList()
+            ownHints = emptyList()
             return
         }
         hintJob = lifecycleScope.launch {
+            // Своё ищется на месте и сразу, без задержки: сети тут нет
+            ownHints = withContext(Dispatchers.Default) { Find.inLibrary(text) }
             delay(HINT_DELAY_MS)
             hints = Suggest.forQuery(text)
         }
@@ -323,6 +345,16 @@ class MainActivity : ComponentActivity() {
     private fun dropHints() {
         hintJob?.cancel()
         hints = emptyList()
+        ownHints = emptyList()
+    }
+
+    /** Свой трек из подсказок — играет в своём плейлисте, с его места. */
+    private fun playOwn(hit: Find.Hit) {
+        dropHints()
+        val list = Settings.playlist(hit.playlist)
+        val at = list.indexOfFirst { it.id == hit.track.id }
+        if (at >= 0) host.play(list, at) else host.play(listOf(hit.track), 0)
+        goNow()
     }
 
     private fun useHint(text: String) {
@@ -407,7 +439,7 @@ class MainActivity : ComponentActivity() {
                 results = listOf(track)
                 resultsTitle = "По ссылке"
                 host.play(listOf(track), 0)
-                tab = Tab.NOW
+                goNow()
                 "играю: ${track.title}"
             }
             return
@@ -428,7 +460,7 @@ class MainActivity : ComponentActivity() {
      */
     private fun startRadio(seed: Track) {
         RadioJob.start(this, seed)
-        tab = Tab.NOW
+        goNow()
     }
 
     private fun updateEngine() = work("проверяю yt-dlp…", Job.ENGINE) {
@@ -520,7 +552,7 @@ class MainActivity : ComponentActivity() {
             Column {
                 // Плашки — над плеером: «Отменить» у дизлайка, ход скачивания, новая версия
                 PlaqueHost()
-                if (tab != Tab.NOW || artist != null || settingsOpen) MiniPlayer(host, ::like) { goTab(Tab.NOW) }
+                if (tab != Tab.NOW || artist != null || settingsOpen) MiniPlayer(host, ::like) { goNow() }
                 NavigationBar {
                     NavigationBarItem(
                         selected = tab == Tab.HOME,
@@ -534,7 +566,7 @@ class MainActivity : ComponentActivity() {
                     )
                     NavigationBarItem(
                         selected = tab == Tab.NOW,
-                        onClick = { goTab(Tab.NOW) },
+                        onClick = { goNow() },
                         icon = { Icon(Icons.Default.PlayCircle, contentDescription = null) },
                         // Короче, чем заголовок: «Играет сейчас» в нижнем меню
                         // переносится на две строки
@@ -556,6 +588,7 @@ class MainActivity : ComponentActivity() {
             }
         }
     ) { pad ->
+        val keep = rememberSaveableStateHolder()
         Box(Modifier.fillMaxSize().padding(pad)) {
         Surface(modifier = Modifier.fillMaxSize()) {
             val openArtist = artist
@@ -568,11 +601,13 @@ class MainActivity : ComponentActivity() {
                     currentId = host.current?.id.orEmpty(),
                     onBack = { artist = null },
                     onOpenArtist = { artist = it },
-                    onPlay = { list, index -> host.play(list, index); goTab(Tab.NOW) },
+                    onPlay = { list, index -> host.play(list, index); goNow() },
                     onRadio = ::startRadio,
                     onTrackMenu = { menuTrack = it }
                 )
-                else -> when (tab) {
+                // Каждая вкладка помнит своё — открытый плейлист, место
+                // прокрутки, находки, — пока на другой
+                else -> keep.SaveableStateProvider(tab) { when (tab) {
                 Tab.HOME -> HomeScreen(
                     recent = recent,
                     picks = Recommend.tracks,
@@ -588,6 +623,8 @@ class MainActivity : ComponentActivity() {
                     query = query,
                     onQueryChange = ::onQueryChanged,
                     hints = hints,
+                    ownHints = ownHints,
+                    onOwnHint = ::playOwn,
                     onUseHint = { query = it; dropHints(); searchFromHome() },
                     onSearch = ::searchFromHome
                 )
@@ -612,7 +649,7 @@ class MainActivity : ComponentActivity() {
                     cachedIds = cachedIds,
                     cachedTracks = cachedTracks,
                     currentId = host.current?.id.orEmpty(),
-                    onPlay = { list, index -> host.play(list, index); tab = Tab.NOW },
+                    onPlay = { list, index -> host.play(list, index); goNow() },
                     onTrackMenu = { menuTrack = it },
                     onChanged = { revision++ },
                     onImportLikes = ::openYtMusic
@@ -622,6 +659,8 @@ class MainActivity : ComponentActivity() {
                     query = query,
                     onQueryChange = ::onQueryChanged,
                     hints = hints,
+                    ownHints = ownHints,
+                    onOwnHint = ::playOwn,
                     onUseHint = ::useHint,
                     playlistUrl = playlistUrl,
                     onPlaylistUrlChange = { playlistUrl = it },
@@ -639,10 +678,10 @@ class MainActivity : ComponentActivity() {
                     hasKey = Settings.hasApiKey,
                     onSearch = ::runSearch,
                     onOpenPlaylist = ::openLink,
-                    onPlay = { index -> host.play(results, index); tab = Tab.NOW },
+                    onPlay = { index -> host.play(results, index); goNow() },
                     onTrackMenu = { menuTrack = it }
                 )
-                }
+                } }
             }
         }
             // «Что нового?» — в правом нижнем углу, над плеером
@@ -653,6 +692,12 @@ class MainActivity : ComponentActivity() {
         // приложение. Внутренние экраны библиотеки перехватывают её раньше —
         // у вложенного обработчика приоритет выше.
         BackHandler(enabled = tab != Tab.HOME && !settingsOpen && artist == null) {
+            val back = cameFrom?.takeIf { tab == Tab.NOW && it != Tab.HOME }
+            cameFrom = null
+            if (back != null) {
+                tab = back
+                return@BackHandler
+            }
             tab = Tab.HOME
             recent = Settings.recentTracks()
             Recommend.refreshIfStale(this@MainActivity)

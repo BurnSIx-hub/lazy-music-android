@@ -93,6 +93,12 @@ object Engine {
     /** Пробовать ли сначала быстрый путь. */
     val fastClient: Boolean get() = System.currentTimeMillis() >= fastOffUntil
 
+    /** Выключить быстрый путь — только для проверки запасного (отладочная сборка). */
+    fun pauseFast() {
+        fastOffUntil = System.currentTimeMillis() + FAST_PAUSE_MS
+        Diag.w("быстрый путь выключен вручную — проверка")
+    }
+
     /** Быстрый путь справился — неудачи считаются заново. */
     fun fastWorked() = fastStrikes.set(0)
 
@@ -121,7 +127,7 @@ object Engine {
         }
         // Работу сняли — повторять её другим путём некому и незачем
         if (first is InterruptedException || first is java.util.concurrent.CancellationException) throw first
-        Diag.w("$what — быстрый путь не вышел, пробую обычный: ${Diag.chain(first, 200)}")
+        Diag.w("$what — быстрый путь не вышел, пробую обычный: ${Diag.cause(first, 200)}")
         return run(false).also { fastFailed() }
     }
 

@@ -49,6 +49,18 @@ object Diag {
 
     fun w(message: String) = write("W", message)
 
+    /**
+     * Суть отказа yt-dlp — строка «ERROR: …». Его текст — весь вывод в
+     * ошибки, и предупреждения идут первыми: у знакомой 2026-10-18 экран
+     * заняли «ffmpeg-location … does not exist» и «No title found», а сама
+     * причина не влезла. Нет такой строки — вся цепочка, как раньше.
+     */
+    fun cause(error: Throwable, limit: Int = 300): String {
+        val all = generateSequence(error) { it.cause }.mapNotNull { it.message }.joinToString("\n")
+        return all.lineSequence().map { it.trim() }.firstOrNull { it.startsWith("ERROR:") }?.take(limit)
+            ?: chain(error, limit)
+    }
+
     /** Вся цепочка причин одной строкой: у ExoPlayer суть обычно на дне. */
     fun chain(error: Throwable, limit: Int = 400): String =
         generateSequence(error) { it.cause }

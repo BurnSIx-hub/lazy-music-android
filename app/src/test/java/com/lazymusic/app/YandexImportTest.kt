@@ -172,7 +172,10 @@ class YandexImportTest {
         assertEquals("пустой ответ «Песен» — сбой", State.WAIT, items[3].state)
         assertEquals(1, items[3].tries)
         ImportMatch.matchBatch(listOf(items[3]), probe)
-        assertEquals("второй пустой ответ — не нашлось", State.MISS, items[3].state)
+        // Правила 2: обычный поиск тоже пуст — ещё один заход, а не «не нашлось»
+        assertEquals("второй пустой ответ — ещё заход", State.WAIT, items[3].state)
+        ImportMatch.matchBatch(listOf(items[3]), probe)
+        assertEquals("пусто и в третий раз — не нашлось", State.MISS, items[3].state)
     }
 
     @Test
@@ -212,5 +215,118 @@ class YandexImportTest {
     fun queryAndSongsUrl() {
         val i = Item("Rammstein", "Du hast", "Remastered", 0)
         assertEquals("Rammstein - Du hast Remastered", ImportMatch.query(i))
+    }
+
+    // ── Правила 2: ненайденное первой живой проверки (2026-10-18) ────────────
+    //
+    // Ответы YouTube — настоящие, сняты yt-dlp в тот же день теми же запросами
+
+    @Test
+    fun rules2Titles() {
+        assertTrue("артикль в начале", ImportMatch.sameTitle("House of the Rising Sun", "The House of the Rising Sun"))
+        assertTrue("артикль a", ImportMatch.sameTitle("Thousand Years", "A Thousand Years"))
+        assertTrue("хвост после « - » необязателен",
+            ImportMatch.sameTitle("Est-ce que tu m'aimes ? (Pilule bleue)", "Est-ce que tu m'aimes? - Pilule bleue"))
+        assertTrue("название из одних знаков", ImportMatch.sameTitle("∞", "∞"))
+        assertTrue("знаки и живая версия", ImportMatch.sameTitle("∞ (live)", "∞"))
+        assertFalse("знаки — не что попало", ImportMatch.sameTitle("ДОКАЗАНО", "∞"))
+        assertTrue("минус перед числом", ImportMatch.sameTitle("-140", "-140"))
+        // Прежние различия остались
+        assertFalse(ImportMatch.sameTitle("Believer", "Believe"))
+        assertFalse(ImportMatch.sameTitle("Каждый раз", "Каждый"))
+        assertFalse("короткая голова до « - » не в счёт", ImportMatch.sameTitle("Ok", "Ok - Something"))
+    }
+
+    @Test
+    fun rules2Query() {
+        assertEquals("скобки «(из фильма …)» сбивают поиск", "Doja Cat - Boss Bitch",
+            ImportMatch.query(item("Doja Cat", "Boss Bitch (из фильма «Хищные птицы: Потрясающая история Харли Квинн»)")))
+        assertEquals("минус YouTube читает как «исключить»", "Земфира - 140", ImportMatch.query(item("Земфира", "-140")))
+        assertEquals("дефис внутри слова и « - » не трогаем", "GIMS - Est-ce que tu m'aimes? - Pilule bleue",
+            ImportMatch.query(item("GIMS", "Est-ce que tu m'aimes? - Pilule bleue")))
+        assertEquals("название целиком в скобках — оставляем", "X - (Интро)", ImportMatch.query(item("X", "(Интро)")))
+        assertEquals("знаки остаются", "Земфира - ∞", ImportMatch.query(item("Земфира", "∞")))
+    }
+
+    /** Подставной YouTube: «Песни» и обычный поиск по готовым ответам на запрос. */
+    private fun youtube(songs: Map<String, List<String>>, videos: Map<String, List<Pair<String, String>>>):
+        suspend (List<String>, Int) -> List<Radio.Row> = { urls, _ ->
+        if (urls[0].startsWith("https://music.youtube.com/")) urls.flatMap { u ->
+            val q = songsQuery(u)
+            songs[q].orEmpty().mapIndexed { n, t -> Radio.Row("s${n}xxxxxxxxx", t, "", "$q - songs") }
+        } else urls.flatMap { u ->
+            val q = u.substringAfter(':')
+            videos[q].orEmpty().mapIndexed { n, (t, up) -> Radio.Row("v${n}xxxxxxxxx", t, up, q) }
+        }
+    }
+
+    @Test
+    fun rules2LiveMisses() = runBlocking {
+        val probe = youtube(
+            songs = mapOf(
+                "The Animals - The House of the Rising Sun" to listOf("House of the Rising Sun", "House of the Rising Sun", "The House of the Rising Sun"),
+                "YOASOBI - 怪物" to listOf("Romance", "あの夢をなぞって", "アンコール"),
+                "GIMS - Est-ce que tu m'aimes? - Pilule bleue" to listOf("Est-ce que tu m'aimes ? (Pilule bleue)", "Brisé (Pilule bleue)", "Tu me l'avais promis"),
+                "Doja Cat - Boss Bitch" to listOf("Boss Bitch", "Cyber Sex", "BOSS BITCH TEKK (Slowed)"),
+                "Lily Allen - Fuck You" to listOf("Fuck You", "Fuck You", "Fuck You"),
+                "Земфира - 140" to listOf("-140", "Ты моя зима", "DRAMATIQUE"),
+                "Земфира - ∞" to listOf("∞", "∞ (live)", "ДОКАЗАНО"),
+                "Gloria Gaynor - コイノサヴァイヴァル" to listOf("I Will Survive (Extended Version)", "I Will Survive", "恋のサバイバル(インスト) [KEY Am] - I Will Survive (Instrumental)[KEY Am]"),
+                "Le meilleur de la pop française - Je veux" to listOf("Je veux qu'il s'en aille", "Je ne suis pas chauve", "La tribu de Dana"),
+            ),
+            videos = mapOf(
+                "YOASOBI - 怪物" to listOf(
+                    "YOASOBI「怪物」Official Music Video　(YOASOBI - Monster)" to "YOASOBI and Echoes",
+                    "YOASOBI – '怪物 (Monster)' Lyrics" to "Kei Takahashi"),
+                "Gloria Gaynor - コイノサヴァイヴァル" to listOf(
+                    "Gloria Gaynor - I Will Survive" to "Gloria Gaynor",
+                    "恋のサバイバル　　グロリア・ゲイナー" to "singlewing1960"),
+                "Le meilleur de la pop française - Je veux" to listOf(
+                    "Louane - JOUR 1 (vidéo officielle)" to "Louane",
+                    "Yelle - Je Veux Te Voir" to "100% Chanson Française"),
+            )
+        )
+        val found = listOf(
+            item("The Animals", "The House of the Rising Sun"),
+            item("YOASOBI", "怪物"),
+            item("GIMS", "Est-ce que tu m'aimes? - Pilule bleue"),
+            item("Doja Cat", "Boss Bitch (из фильма «Хищные птицы: Потрясающая история Харли Квинн»)"),
+            item("Lily Allen", "Fuck You (из фильма «Бриджит Джонс 3»)"),
+            item("Земфира", "-140"),
+            item("Земфира", "∞"),
+        )
+        val lost = listOf(item("Gloria Gaynor", "コイノサヴァイヴァル"), item("Le meilleur de la pop française", "Je veux"))
+        ImportMatch.matchBatch(found + lost, probe)
+        for (i in found) assertEquals("нашлось: ${i.artist} — ${i.title}", State.OK, i.state)
+        assertTrue("YOASOBI — роликом", found[1].video)
+        for (i in lost) assertEquals("не находится и теперь: ${i.artist} — ${i.title}", State.MISS, i.state)
+    }
+
+    @Test
+    fun rules2ShortLatinStillGuarded() = runBlocking {
+        // Два латинских знака — не повод верить ролику: «Go» есть в каждом втором
+        val go = item("Кто-то", "Go")
+        ImportMatch.matchBatch(listOf(go), youtube(
+            songs = mapOf("Кто-то - Go" to listOf("Gone", "Going", "Good")),
+            videos = mapOf("Кто-то - Go" to listOf("Кто-то - Gold Rush (Official)" to "Кто-то"))
+        ))
+        assertEquals(State.MISS, go.state)
+    }
+
+    @Test
+    fun rules2EmptySearchIsOutage() = runBlocking {
+        // «Песни» ответили чужим, обычный поиск — пусто: это сбой сети, а не
+        // «не нашлось» (так в живой проверке пропал «Intelligency — August»)
+        val august = item("Intelligency", "August")
+        val flaky = youtube(songs = mapOf("Intelligency - August" to listOf("Июль")), videos = emptyMap())
+        ImportMatch.matchBatch(listOf(august), flaky)
+        assertEquals("первый пустой — ждёт", State.WAIT, august.state)
+        ImportMatch.matchBatch(listOf(august), youtube(
+            songs = mapOf("Intelligency - August" to listOf("August", "August", "August")), videos = emptyMap()))
+        assertEquals("со второго захода нашёлся", State.OK, august.state)
+
+        val never = item("Нет", "Сети")
+        repeat(4) { ImportMatch.matchBatch(listOf(never), youtube(songs = mapOf("Нет - Сети" to listOf("Чужое")), videos = emptyMap())) }
+        assertEquals("четыре пустых подряд — сдаёмся", State.MISS, never.state)
     }
 }

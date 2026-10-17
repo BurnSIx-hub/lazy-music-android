@@ -71,12 +71,14 @@ fun HomeScreen(
     query: String,
     onQueryChange: (String) -> Unit,
     hints: List<String>,
+    ownHints: List<Find.Hit>,
+    onOwnHint: (Find.Hit) -> Unit,
     onUseHint: (String) -> Unit,
     onSearch: () -> Unit
 ) {
     // Строка поиска сверху — как на ПК: ищет на вкладке «Поиск»
     val search: @Composable () -> Unit = {
-        HomeSearch(query, onQueryChange, hints, onUseHint, onSearch)
+        HomeSearch(query, onQueryChange, hints, ownHints, onOwnHint, onUseHint, onSearch)
     }
     if (recent.isEmpty()) {
         Column {
@@ -228,6 +230,8 @@ private fun HomeSearch(
     query: String,
     onQueryChange: (String) -> Unit,
     hints: List<String>,
+    ownHints: List<Find.Hit>,
+    onOwnHint: (Find.Hit) -> Unit,
     onUseHint: (String) -> Unit,
     onSearch: () -> Unit
 ) {
@@ -249,23 +253,14 @@ private fun HomeSearch(
             keyboardActions = KeyboardActions(onSearch = { focus.clearFocus(); onSearch() }),
             modifier = Modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused }
         )
-        if (focused && hints.isNotEmpty()) {
+        if (focused && (hints.isNotEmpty() || ownHints.isNotEmpty())) {
             Spacer(Modifier.height(4.dp))
-            Card(Modifier.fillMaxWidth().heightIn(max = 184.dp)) {
-                Column(Modifier.verticalScroll(rememberScrollState())) {
-                    hints.forEach { hint ->
-                        Text(
-                            hint,
-                            style = MaterialTheme.typography.bodyMedium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.fillMaxWidth()
-                                .clickable { focus.clearFocus(); onUseHint(hint) }
-                                .padding(horizontal = 16.dp, vertical = 9.dp)
-                        )
-                    }
-                }
-            }
+            HintCard(
+                own = ownHints,
+                hints = hints,
+                onOwn = { focus.clearFocus(); onOwnHint(it) },
+                onHint = { focus.clearFocus(); onUseHint(it) }
+            )
         }
     }
 }

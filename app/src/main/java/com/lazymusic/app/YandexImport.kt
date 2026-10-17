@@ -81,7 +81,9 @@ object YandexImport {
         val name: String,
         val at: Long,
         val items: List<Item>,
-        var done: Long = 0L
+        var done: Long = 0L,
+        /** По каким правилам сверки искали — [ImportMatch.RULES]. */
+        var rules: Int = ImportMatch.RULES
     ) {
         val waiting get() = items.any { it.state == State.WAIT }
         fun count(s: State) = items.count { it.state == s }
@@ -114,7 +116,27 @@ object YandexImport {
         tasks.clear()
         tasks += runCatching { load(AtomicFile(file).readFully().toString(Charsets.UTF_8)) }
             .getOrElse { if (file.exists()) Log.w(TAG, "импорт: сохранённое не прочлось", it); emptyList() }
+        recheck()
         if (tasks.any { it.done == 0L && it.waiting }) run()
+    }
+
+    /**
+     * Правила сверки поменялись с прошлого раза — ненайденное в законченных
+     * импортах ищется заново. Найденное встанет на своё место в плейлисте,
+     * в конце — та же плашка «Импорт готов» с новым счётом.
+     */
+    private fun recheck() {
+        val names = Settings.playlistNames().toSet()
+        for (task in tasks) {
+            if (task.rules >= ImportMatch.RULES) continue
+            task.rules = ImportMatch.RULES
+            if (task.done == 0L || task.name !in names) continue
+            val lost = task.items.filter { it.state == State.MISS }
+            if (lost.isEmpty()) continue
+            lost.forEach { it.state = State.WAIT; it.tries = 0 }
+            task.done = 0L
+            Log.i(TAG, "импорт «${task.title}»: новые правила сверки, ищу заново ${lost.size}")
+        }
     }
 
     /** Вернулись в приложение — возможно, включив VPN: не ждать минуту. */
@@ -285,7 +307,7 @@ object YandexImport {
     fun dump(list: List<Task>): String = JSONArray().apply {
         for (t in list) put(JSONObject().apply {
             put("id", t.id); put("source", "yandex"); put("title", t.title); put("name", t.name)
-            put("at", t.at); put("done", t.done)
+            put("at", t.at); put("done", t.done); put("rules", t.rules)
             put("items", JSONArray().apply {
                 for (i in t.items) put(JSONObject().apply {
                     put("artist", i.artist); put("title", i.title); put("version", i.version); put("ms", i.ms)
@@ -309,6 +331,8 @@ object YandexImport {
                 name = o.optString("name"),
                 at = o.optLong("at"),
                 done = o.optLong("done"),
+                // Задания до правил версии 2 этого поля не знали
+                rules = o.optInt("rules", 1),
                 items = (0 until items.length()).mapNotNull { items.optJSONObject(it) }.map { i ->
                     Item(
                         artist = i.optString("artist"),

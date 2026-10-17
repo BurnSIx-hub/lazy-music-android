@@ -109,11 +109,16 @@ class YtDataSource private constructor(
         }
 
         var updated = false
+        var switched = false
+        var other = false
         var attempt = 0
         while (true) {
             attempt++
             val url = try {
-                StreamUrls.blocking(app, videoId)
+                if (other) {
+                    other = false
+                    StreamUrls.otherWay(app, videoId)
+                } else StreamUrls.blocking(app, videoId)
             } catch (gone: TrackUnavailable) {
                 throw gone
             } catch (e: IOException) {
@@ -142,7 +147,13 @@ class YtDataSource private constructor(
                 // Замер идёт в стороне: он ждёт соединений и починку задерживать не должен
                 thread(name = "lazy-probe", isDaemon = true) { Diag.i("$videoId — замер: ${probe(url)}") }
                 if (attempt == 1) continue
-                // Отвергли только что добытую — возраст ссылки ни при чём
+                // Отвергли и только что добытую — возраст ссылки ни при чём,
+                // дело в клиенте: пробуем другой путь (см. StreamUrls.otherWay)
+                if (!switched) {
+                    switched = true
+                    other = true
+                    continue
+                }
                 if (updated || !Engine.refreshAfterFailure(app)) throw e
                 updated = true
             }

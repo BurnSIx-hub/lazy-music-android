@@ -105,25 +105,21 @@ fun NowPlayingScreen(
             // одинаковые с обеих сторон, иначе центр уедет влево от обложки
             Box(Modifier.fillMaxWidth()) {
                 Column(Modifier.fillMaxWidth().padding(horizontal = 56.dp)) {
-                    Text(
+                    // Длинное название не режется, а проезжает бегущей строкой
+                    MarqueeText(
                         text = track.title,
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.SemiBold,
-                        textAlign = TextAlign.Center,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.fillMaxWidth()
+                        center = true
                     )
                     if (track.artist.isNotBlank()) {
                         Spacer(Modifier.height(4.dp))
-                        Text(
+                        MarqueeText(
                             text = track.artist,
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.fillMaxWidth().clickable { onArtist(track.artist) }
+                            center = true,
+                            modifier = Modifier.clickable { onArtist(track.artist) }
                         )
                     }
                 }
