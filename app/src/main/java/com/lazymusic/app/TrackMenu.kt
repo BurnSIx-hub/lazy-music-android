@@ -1,5 +1,6 @@
 package com.lazymusic.app
 
+import android.content.Intent
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -20,6 +21,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.Radio
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.ThumbDown
 import androidx.compose.material.icons.filled.ThumbDownOffAlt
 import androidx.compose.material.icons.filled.ThumbUp
@@ -40,6 +42,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -141,6 +144,16 @@ fun TrackMenu(
 
             Item(Icons.Default.Edit, "Переименовать", "Под таким же названием будет на компьютере и в модуле") {
                 renaming = true
+            }
+
+            // Ссылка на ролик — через «Поделиться»: в Telegram, сообщением, куда угодно
+            val context = LocalContext.current
+            Item(Icons.Default.Share, "Поделиться", "Ссылка на трек в YouTube") {
+                val text = listOf(track.title, track.artist).filter { it.isNotBlank() }.joinToString(" — ") +
+                    "\n" + Track.link(track.id)
+                val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text)
+                runCatching { context.startActivity(Intent.createChooser(send, "Поделиться")) }
+                onDismiss()
             }
 
             HorizontalDivider(Modifier.padding(vertical = 6.dp))

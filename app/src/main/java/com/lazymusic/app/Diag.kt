@@ -1,6 +1,7 @@
 package com.lazymusic.app
 
 import android.content.Context
+import android.os.Build
 import android.util.Log
 import java.io.File
 import java.text.SimpleDateFormat
@@ -68,6 +69,75 @@ object Diag {
             .distinct()
             .joinToString(" <- ")
             .take(limit)
+
+    /**
+     * Журнал одним файлом — отправить разработчику кнопкой в настройках
+     * (просьба 2026-10-18: жалобы знакомой приходят снимками экрана, а
+     * что было до них — не видно).
+     *
+     * Сверху — сводка: версии, телефон, есть ли ключ и вход, плейлисты
+     * с числом треков. Ниже — оба файла журнала, старый и текущий. Файл
+     * уходит из рук, поэтому вычищен ещё раз ([scrub]): ключ, адреса,
+     * хвосты ссылок, почта и имя компьютера.
+     */
+    @Synchronized
+    fun export(context: Context): File {
+        val now = Date()
+        val out = StringBuilder()
+        val app = runCatching { context.packageManager.getPackageInfo(context.packageName, 0) }.getOrNull()
+        @Suppress("DEPRECATION")
+        out.appendLine("Lazy Music ${app?.versionName ?: "?"} (${app?.versionCode ?: "?"})")
+        out.appendLine("Android ${Build.VERSION.RELEASE} (${Build.VERSION.SDK_INT}), ${Build.MANUFACTURER} ${Build.MODEL}")
+        out.appendLine("Выгружен ${SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(now)}")
+        out.appendLine("yt-dlp ${Engine.version ?: "встроенный"}")
+        out.appendLine("Ключ API: ${if (Settings.apiKey.isBlank()) "нет" else "есть"}")
+        out.appendLine("Вход в YouTube для yt-dlp: ${if (YtLogin.saved(context)) "есть" else "нет"}")
+        out.appendLine("Компьютер: ${if (Settings.hubName.isBlank()) "не сопряжён" else "сопряжён"}")
+        out.appendLine(
+            "Без сети: ${Settings.offlineLists.size} пл., по мобильной — " +
+                if (Settings.offlineOnMobile) "да" else "нет"
+        )
+        out.appendLine("Плейлисты:")
+        for (name in Settings.playlistNames()) {
+            out.appendLine("  «$name» — ${Settings.playlist(name).size}")
+        }
+        val dir = file?.parentFile
+        for (name in listOf("lazy-music.1.log", "lazy-music.log")) {
+            val f = dir?.let { File(it, name) }?.takeIf { it.exists() } ?: continue
+            out.appendLine().appendLine("── $name ──")
+            runCatching { f.readLines() }.getOrDefault(emptyList()).forEach { out.appendLine(it) }
+        }
+        val share = File(context.cacheDir, "logs").apply { mkdirs() }
+        share.listFiles()?.forEach { it.delete() }
+        val target = File(share, "lazy-music-log-${SimpleDateFormat("yyyy-MM-dd-HHmm", Locale.US).format(now)}.txt")
+        target.writeText(scrub(out.toString(), Settings.hubName))
+        return target
+    }
+
+    private val URL = Regex("""(https?)://([^/\s"'<>?#]+)[^\s"'<>]*""")
+    private val API_KEY = Regex("""AIza[0-9A-Za-z_\-]{20,}""")
+    private val EMAIL = Regex("""[\w.+-]+@[\w-]+(\.[\w-]+)+""")
+    private val IPV4 = Regex("""(?<![\d.])(\d{1,3}\.){3}\d{1,3}(?![\d.])""")
+    private val IPV6 = Regex("""(?<![\w:])([0-9A-Fa-f]{0,4}:){2,7}[0-9A-Fa-f]{0,4}(?![\w:])""")
+
+    /**
+     * Убирает то, чему не место в отправленном файле. От ссылки остаётся
+     * сервер: в пути и параметрах бывают ключ, адрес телефона и подпись.
+     * Похожее на IPv6 трогаем, только если в нём есть буква или «::» —
+     * иначе это время вроде 17:56:03.
+     */
+    fun scrub(text: String, hub: String = ""): String {
+        var s = URL.replace(text) { "${it.groupValues[1]}://${it.groupValues[2]}/…" }
+        s = API_KEY.replace(s, "‹ключ›")
+        s = EMAIL.replace(s, "‹почта›")
+        s = IPV4.replace(s, "‹адрес›")
+        s = IPV6.replace(s) { m ->
+            if (m.value.contains("::") || m.value.any { it.isLetter() }) "‹адрес›" else m.value
+        }
+        // Имя компьютера бывает именем человека
+        hub.trim().takeIf { it.length >= 3 }?.let { s = s.replace(it, "‹компьютер›") }
+        return s
+    }
 
     @Synchronized
     private fun write(level: String, message: String) {

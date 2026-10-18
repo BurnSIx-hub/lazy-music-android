@@ -31,6 +31,8 @@ class App : Application() {
         Recommend.load()
         // Импорт из Яндекса, прерванный закрытием, доделывается сам
         YandexImport.restore(this)
+        // Плейлисты без сети докачивают недостающее
+        Offline.attach(this)
         // Раздача библиотеки компьютеру, если её включали
         if (Settings.shareLibrary) Share.start()
         // Сводка с компьютером, если телефон с ним сопряжён

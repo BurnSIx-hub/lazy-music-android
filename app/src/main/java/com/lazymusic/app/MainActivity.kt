@@ -1,6 +1,7 @@
 package com.lazymusic.app
 
 import android.Manifest
+import android.content.ClipData
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -65,6 +66,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.media3.common.util.UnstableApi
 import kotlinx.coroutines.Dispatchers
@@ -232,6 +234,31 @@ class MainActivity : ComponentActivity() {
     private fun openInBrowser(url: String) {
         runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
             .onFailure { status = "не нашлось, чем открыть ссылку" }
+    }
+
+    /**
+     * Журнал — файлом через «Поделиться»: в Telegram, почту, куда угодно.
+     * Собирается в фоне — в нём сводка по плейлистам и до полумегабайта строк.
+     */
+    private fun sendLog() {
+        lifecycleScope.launch {
+            val file = withContext(Dispatchers.IO) { runCatching { Diag.export(this@MainActivity) }.getOrNull() }
+            if (file == null) {
+                Plaques.toast("Не вышло собрать логи")
+                return@launch
+            }
+            val uri = FileProvider.getUriForFile(this@MainActivity, "$packageName.files", file)
+            val send = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_STREAM, uri)
+                putExtra(Intent.EXTRA_SUBJECT, "Логи Lazy Music")
+                // Через окно выбора право читать файл доезжает только с clipData
+                clipData = ClipData.newRawUri(file.name, uri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            runCatching { startActivity(Intent.createChooser(send, "Отправить логи")) }
+                .onFailure { Plaques.toast("Нет приложения, которое примет файл") }
+        }
     }
 
     /** Сердце: положить трек в понравившееся или убрать оттуда. */
@@ -818,6 +845,19 @@ class MainActivity : ComponentActivity() {
             }
 
             Section("Скачанное") {
+                // Плейлисты без сети (Offline) по умолчанию качаются только по Wi-Fi
+                var mobile by remember { mutableStateOf(Settings.offlineOnMobile) }
+                SwitchRow(
+                    "Скачивать плейлисты по мобильной сети",
+                    if (mobile) "Плейлисты качаются и по мобильной сети"
+                    else "Плейлисты, скачанные для игры без сети, докачиваются только по Wi-Fi",
+                    mobile
+                ) {
+                    mobile = it
+                    Settings.offlineOnMobile = it
+                    if (it) Offline.kick()
+                }
+                Spacer(Modifier.height(8.dp))
                 Text(
                     "В кэше: ${cachedIds.size} шт., " +
                         "${Cache.sizeBytes(this@MainActivity) / (1024 * 1024)} МБ",
@@ -855,6 +895,12 @@ class MainActivity : ComponentActivity() {
                     Text("Проверить обновление")
                 }
                 Notice(status, MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+
+            Section("Журнал") {
+                // Ник Telegram в пояснении — ссылка (LinkHint)
+                LinkHint("Все логи. В случае какого-либо сбоя отправьте логи @keyno21")
+                TextButton(onClick = ::sendLog) { Text("Отправить логи") }
             }
             Spacer(Modifier.height(12.dp))
         }

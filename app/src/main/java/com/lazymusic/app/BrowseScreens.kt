@@ -28,6 +28,8 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DownloadForOffline
+import androidx.compose.material.icons.outlined.DownloadForOffline
 import androidx.compose.material.icons.filled.DownloadDone
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.PlayArrow
@@ -50,6 +52,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.key
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -324,14 +327,30 @@ private fun PlaylistDetail(
             }
             Column(Modifier.weight(1f)) {
                 MarqueeText(name, style = MaterialTheme.typography.titleLarge)
-                Text(
-                    trackCount(tracks.size),
+                // Скачан для игры без сети — сколько уже в кэше (Offline)
+                val offline = Offline.isOn(name)
+                val have = if (offline) tracks.count { it.id in cachedIds } else 0
+                // В одну строку: «· ждёт Wi-Fi» переносилось и обрезалось шапкой (S23)
+                MarqueeText(
+                    if (!offline) trackCount(tracks.size)
+                    else trackCount(tracks.size) + " · скачано $have" +
+                        if (have < tracks.size && Offline.waitingWifi) " · для скачивания подключитесь к Wi-Fi" else "",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             IconButton(onClick = { if (tracks.isNotEmpty()) onPlay(tracks, 0) }) {
                 Icon(Icons.Default.PlayArrow, contentDescription = "Играть всё")
+            }
+            // Скачать весь плейлист для игры без сети — как в Spotify
+            val offline = Offline.isOn(name)
+            IconButton(onClick = { Offline.toggle(name) }) {
+                Icon(
+                    if (offline) Icons.Filled.DownloadForOffline
+                    else Icons.Outlined.DownloadForOffline,
+                    contentDescription = if (offline) "Отменить скачивание" else "Скачать плейлист",
+                    tint = if (offline) MaterialTheme.colorScheme.primary else LocalContentColor.current
+                )
             }
             if (liked) {
                 // Удалять понравившееся целиком нечем нарочно: список держит

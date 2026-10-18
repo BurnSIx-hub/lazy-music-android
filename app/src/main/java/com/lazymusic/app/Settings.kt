@@ -167,6 +167,8 @@ object Settings {
     private fun changed() {
         libraryRevision++
         onLibraryChanged?.invoke()
+        // Плейлисты без сети докачивают новое (Offline)
+        Offline.libraryChanged()
     }
 
     /**
@@ -255,25 +257,41 @@ object Settings {
         if (all.has(clean)) return false
         all.put(clean, JSONArray())
         save(all)
+        Diag.i("плейлист «$clean»: заведён")
         return true
     }
 
     fun deletePlaylist(name: String) {
         val all = raw()
+        val size = all.optJSONArray(name)?.length() ?: 0
         all.remove(name)
         save(all)
+        Diag.i("плейлист «$name»: удалён, было $size")
     }
 
-    /** @return false, если трек в списке уже был — тогда ничего не меняем. */
+    /**
+     * Кладёт трек **наверх** списка, как «Мне нравится» в Яндексе. Внизу
+     * его не находили: у знакомой в списке из Яндекса 1179 треков, свежие
+     * сверху, и добавленный уезжал 1180-м (2026-10-18). Так же и на ПК.
+     *
+     * @return false, если трек в списке уже был — тогда ничего не меняем.
+     */
     fun addToPlaylist(name: String, track: Track): Boolean {
         val all = raw()
-        val arr = all.optJSONArray(name) ?: JSONArray()
-        for (i in 0 until arr.length()) {
-            if (arr.optJSONObject(i)?.optString("id") == track.id) return false
+        val old = all.optJSONArray(name) ?: JSONArray()
+        for (i in 0 until old.length()) {
+            if (old.optJSONObject(i)?.optString("id") == track.id) {
+                Diag.i("плейлист «$name»: ${track.id} уже есть, место ${i + 1} из ${old.length()}")
+                return false
+            }
         }
-        arr.put(track.json())
+        val arr = JSONArray().put(track.json())
+        for (i in 0 until old.length()) {
+            old.optJSONObject(i)?.let { arr.put(it) }
+        }
         all.put(name, arr)
         save(all)
+        Diag.i("плейлист «$name»: ${track.id} добавлен наверх, стало ${arr.length()}")
         return true
     }
 
@@ -303,6 +321,7 @@ object Settings {
         if (added == 0) return 0
         all.put(name, arr)
         save(all)
+        Diag.i("плейлист «$name»: в конец добавлено $added, стало ${arr.length()}")
         return added
     }
 
@@ -336,6 +355,7 @@ object Settings {
         }
         all.put(name, merged)
         save(all)
+        Diag.i("плейлист «$name»: в начало добавлено $added, стало ${merged.length()}")
         return added
     }
 
@@ -349,6 +369,7 @@ object Settings {
         }
         all.put(name, kept)
         save(all)
+        Diag.i("плейлист «$name»: $videoId убран, стало ${kept.length()}")
     }
 
     /** В каких списках этот трек уже лежит — чтобы кнопка «плюс» знала своё состояние. */
@@ -384,6 +405,7 @@ object Settings {
         if (!placed) out.put(track.json())
         all.put(name, out)
         save(all)
+        Diag.i("плейлист «$name»: ${track.id} возвращён на место ${at + 1}")
     }
 
     /**
@@ -407,7 +429,26 @@ object Settings {
         if (added == 0) return
         all.put(name, JSONArray(list))
         save(all)
+        Diag.i("плейлист «$name»: импорт положил $added, стало ${list.size}")
     }
+
+    // ── Плейлисты без сети ───────────────────────────────────────────────────
+
+    private const val KEY_OFFLINE = "offline_lists"
+    private const val KEY_OFFLINE_MOBILE = "offline_on_mobile"
+
+    /** Плейлисты, скачанные для игры без сети, — см. [Offline]. */
+    var offlineLists: Set<String>
+        get() = runCatching {
+            val arr = JSONArray(prefs.getString(KEY_OFFLINE, "[]").orEmpty())
+            (0 until arr.length()).mapTo(mutableSetOf()) { arr.optString(it) }
+        }.getOrDefault(emptySet())
+        set(value) = prefs.edit().putString(KEY_OFFLINE, JSONArray(value.toList()).toString()).apply()
+
+    /** Докачивать плейлисты и по мобильной сети. По умолчанию — только по Wi-Fi. */
+    var offlineOnMobile: Boolean
+        get() = prefs.getBoolean(KEY_OFFLINE_MOBILE, false)
+        set(value) = prefs.edit().putBoolean(KEY_OFFLINE_MOBILE, value).apply()
 
     // ── Не нравится ──────────────────────────────────────────────────────────
 

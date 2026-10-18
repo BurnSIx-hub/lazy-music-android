@@ -30,7 +30,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withLink
 import androidx.compose.ui.unit.dp
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -70,6 +76,28 @@ fun SmallHint(text: String) = Text(
     style = MaterialTheme.typography.bodySmall,
     color = MaterialTheme.colorScheme.onSurfaceVariant
 )
+
+/**
+ * Пояснение, где ник Telegram (`@имя`) — ссылка: нажал — открылся чат.
+ * Для «Журнала»: туда пользователь вписал, кому слать логи (2026-10-18).
+ */
+@Composable
+fun LinkHint(text: String) {
+    val link = TextLinkStyles(SpanStyle(color = MaterialTheme.colorScheme.primary, textDecoration = TextDecoration.Underline))
+    val shown = buildAnnotatedString {
+        var at = 0
+        for (m in TG_NICK.findAll(text)) {
+            append(text.substring(at, m.range.first))
+            withLink(LinkAnnotation.Url("https://t.me/${m.groupValues[1]}", link)) { append(m.value) }
+            at = m.range.last + 1
+        }
+        append(text.substring(at))
+    }
+    Text(shown, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+}
+
+/** Ник Telegram: 5–32 знака, буквы, цифры и подчёркивание. */
+private val TG_NICK = Regex("""(?<![\w@])@([A-Za-z][A-Za-z0-9_]{4,31})\b""")
 
 /** Строка с выключателем справа и пояснением под названием. */
 @Composable

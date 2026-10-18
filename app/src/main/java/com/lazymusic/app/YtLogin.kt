@@ -85,6 +85,9 @@ object YtLogin {
         return file
     }
 
+    /** Передан ли вход yt-dlp — для сводки в журнале ([Diag.export]). */
+    fun saved(context: Context) = File(context.filesDir, FILE).exists()
+
     /** Вышли из аккаунта во встроенном браузере — yt-dlp тоже забывает вход. */
     fun forget(context: Context) {
         File(context.filesDir, FILE).delete()

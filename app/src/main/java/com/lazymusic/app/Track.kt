@@ -57,6 +57,11 @@ data class Track(
                 .build()
         )
         .build()
+
+    companion object {
+        /** Ссылка на трек, чтобы поделиться: короткая, открывается и в приложении YouTube. Как на ПК. */
+        fun link(id: String) = "https://youtu.be/$id"
+    }
 }
 
 /**
