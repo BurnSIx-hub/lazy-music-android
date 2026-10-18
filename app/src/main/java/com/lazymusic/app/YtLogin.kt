@@ -45,7 +45,14 @@ object YtLogin {
     /** Проверка на бота в тексте ошибки. Апостроф бывает и типографский — без него. */
     private val BOT = listOf("not a bot", "sign in to confirm")
 
-    @Volatile private var until = 0L
+    /**
+     * До какого времени ходим со входом. В настройках, а не только в памяти:
+     * иначе после каждого перезапуска первая попытка шла без входа, упиралась
+     * в ту же проверку и теряла секунд пять (журнал знакомой, 2026-10-19).
+     */
+    private var until: Long
+        get() = Settings.ytLoginUntil
+        set(value) { Settings.ytLoginUntil = value }
     @Volatile private var asked = 0L
 
     private val main = Handler(Looper.getMainLooper())

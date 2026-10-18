@@ -445,6 +445,13 @@ object Settings {
         }.getOrDefault(emptySet())
         set(value) = prefs.edit().putString(KEY_OFFLINE, JSONArray(value.toList()).toString()).apply()
 
+    /** До какого времени yt-dlp ходит со входом после проверки на бота — см. [YtLogin]. */
+    var ytLoginUntil: Long
+        get() = prefs.getLong(KEY_YT_LOGIN_UNTIL, 0L)
+        set(value) = prefs.edit().putLong(KEY_YT_LOGIN_UNTIL, value).apply()
+
+    private const val KEY_YT_LOGIN_UNTIL = "yt_login_until"
+
     /** Докачивать плейлисты и по мобильной сети. По умолчанию — только по Wi-Fi. */
     var offlineOnMobile: Boolean
         get() = prefs.getBoolean(KEY_OFFLINE_MOBILE, false)

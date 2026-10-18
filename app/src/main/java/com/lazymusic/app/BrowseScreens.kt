@@ -399,16 +399,21 @@ private fun PlaylistDetail(
         } else if (shown.isEmpty()) {
             EmptyHint("Ничего не нашлось.")
         } else {
+            // Снимок списка — тот же, из которого посчитаны номера в shown.
+            // Ключ, читавший сам tracks, падал у знакомой (2026-10-19): после
+            // удаления трека подкачка строк между кадрами брала старые номера
+            // и уже укороченный список — tracks[1178] из 1178
+            val list = tracks
             LazyColumn(Modifier.fillMaxSize()) {
                 // Найденное играет весь плейлист с этого места, а не одни
                 // находки: после трека музыка идёт дальше по плейлисту
-                items(shown, key = { tracks[it].id }) { index ->
-                    val track = tracks[index]
+                items(shown, key = { list[it].id }) { index ->
+                    val track = list[index]
                     TrackRow(
                         track = track,
                         isCurrent = track.id == currentId,
                         cached = track.id in cachedIds,
-                        onPlay = { onPlay(tracks, index) },
+                        onPlay = { onPlay(list, index) },
                         onMenu = { onTrackMenu(track) }
                     )
                 }
