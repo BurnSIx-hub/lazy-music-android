@@ -39,8 +39,9 @@ import org.json.JSONObject
 import java.io.File
 
 /**
- * Импорт чужих списков: Яндекс Музыка → поиск на YouTube → свой плейлист.
- * Тот же порядок, что `imports.js` на ПК.
+ * Импорт чужих списков: Яндекс Музыка или Spotify → поиск на YouTube →
+ * свой плейлист. Тот же порядок, что `imports.js` на ПК. Источник нужен
+ * только на первом шаге — взять список ([Yandex], [Spotify]); дальше путь общий.
  *
  * **В два шага.** Список из Яндекса берётся сразу и сохраняется, а поиск на
  * YouTube идёт, когда тот доступен. В России Яндекс пускает только с
@@ -145,15 +146,17 @@ object YandexImport {
     }
 
     /**
-     * Ссылка из строки «Ссылка на…». true — это Яндекс, импорт начат или
-     * объяснено, почему нет; false — не наша ссылка.
+     * Ссылка из строки «Ссылка на…». true — это Яндекс или Spotify, импорт
+     * начат или объяснено, почему нет; false — не наша ссылка.
      */
     fun start(text: String): Boolean {
-        val link = Yandex.link(text) ?: return false
+        val ya = Yandex.link(text)
+        val sp = if (ya == null) Spotify.link(text) else null
+        if (ya == null && sp == null) return false
         scope.launch {
-            val p = Plaques.notice(tr("Беру список из Яндекс Музыки…"))
+            val p = Plaques.notice(if (ya != null) tr("Беру список из Яндекс Музыки…") else tr("Беру список из Spotify…"))
             val list = try {
-                withContext(Dispatchers.IO) { Yandex.fetch(link) }
+                withContext(Dispatchers.IO) { if (ya != null) Yandex.fetch(ya) else Spotify.fetch(sp!!) }
             } catch (c: CancellationException) {
                 throw c
             } catch (t: Throwable) {
@@ -169,7 +172,9 @@ object YandexImport {
                 Plaques.toast(tr("В этом плейлисте нет треков"))
                 return@launch
             }
-            val name = freeName(list.title)
+            // Встроенный плеер Spotify отдаёт не больше 100 треков — сказать сразу
+            if (list.cut) Plaques.toast(tr("Spotify по ссылке отдаёт только первые {число} треков", "число" to Spotify.CAP))
+            val name = freeName(list.title, spotify = sp != null)
             Settings.createPlaylist(name)
             tasks += Task(
                 id = System.currentTimeMillis().toString(36),
@@ -187,14 +192,18 @@ object YandexImport {
         return true
     }
 
-    /** Свободное имя плейлиста: «Мне нравится» уже есть — «Мне нравится (Яндекс)». */
-    private fun freeName(title: String): String {
+    /** Свободное имя плейлиста: «Мне нравится» уже есть — «Мне нравится (Яндекс)», «… (Spotify)». */
+    private fun freeName(title: String, spotify: Boolean): String {
         val taken = Settings.playlistNames().mapTo(HashSet()) { it.trim().lowercase() }
-        val base = title.trim().ifBlank { tr("Яндекс Музыка") }
+        val base = title.trim().ifBlank { if (spotify) "Spotify" else tr("Яндекс Музыка") }
         if (base.lowercase() !in taken) return base
         var n = 1
         while (true) {
-            val name = if (n == 1) tr("{название} (Яндекс)", "название" to base) else tr("{название} (Яндекс {число})", "название" to base, "число" to n)
+            val name = when {
+                spotify -> if (n == 1) "$base (Spotify)" else "$base (Spotify $n)"
+                n == 1 -> tr("{название} (Яндекс)", "название" to base)
+                else -> tr("{название} (Яндекс {число})", "название" to base, "число" to n)
+            }
             if (name.lowercase() !in taken) return name
             n++
         }

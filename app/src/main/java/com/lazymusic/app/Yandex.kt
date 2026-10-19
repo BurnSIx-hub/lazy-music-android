@@ -55,7 +55,8 @@ object Yandex {
     /** Трек Яндекса → то, что ищем на YouTube. */
     data class Entry(val artist: String, val title: String, val version: String, val ms: Long)
 
-    class Listing(val title: String, val tracks: List<Entry>)
+    /** [cut] — источник отдал не всё (Spotify по ссылке — не больше [Spotify.CAP]). */
+    class Listing(val title: String, val tracks: List<Entry>, val cut: Boolean = false)
 
     /** null — не Яндекс Музыка. */
     fun link(text: String?): Link? {

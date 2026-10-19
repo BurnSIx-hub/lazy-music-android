@@ -405,6 +405,9 @@ def replace_texts(changes):
             src = src.replace(raw, lit)
             if keep:
                 renamed.append((item['text'], new))
+            # Место — на новый литерал: следующий import найдёт его по точному виду
+            item['raw'] = lit
+            item['text'] = new
         io.open(p, 'w', encoding='utf-8', newline='\n').write(src)
     en_rename(renamed)
     return problems
@@ -554,6 +557,12 @@ def cmd_import(doc_md):
             changes.append((p, new))
     for p in replace_texts(changes):
         print('ПРОБЛЕМА', p)
+    # Переписанное — в texts.json: файл текстов и код снова совпадают
+    for e in entries:
+        if e['places'] and all(p.get('text') == e['places'][0].get('text') for p in e['places']):
+            e['text'] = e['places'][0]['text']
+    json.dump({'entries': entries}, io.open(os.path.join(HERE, 'texts.json'), 'w', encoding='utf-8'),
+              ensure_ascii=False, indent=1)
     print('изменено мест:', len(changes))
 
 

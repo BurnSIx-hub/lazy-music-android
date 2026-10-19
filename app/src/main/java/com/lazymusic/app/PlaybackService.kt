@@ -54,6 +54,7 @@ class PlaybackService : MediaSessionService() {
 
     private var session: MediaSession? = null
     private var recovery: Recovery? = null
+    private var listening: Listening.Tracker? = null
 
     private val likeCommand = SessionCommand(ACTION_LIKE, Bundle.EMPTY)
 
@@ -116,6 +117,9 @@ class PlaybackService : MediaSessionService() {
                 // получается без паузы на раскачку
                 setPreloadConfiguration(ExoPlayer.PreloadConfiguration(PRELOAD_US))
             }
+
+        // Что и сколько слушали — для «Итогов года»
+        listening = Listening.Tracker(this, player).also { player.addListener(it) }
 
         // А ссылку для следующего трека добудут ещё раньше
         val prefetcher = Prefetcher(this, player)
@@ -210,6 +214,8 @@ class PlaybackService : MediaSessionService() {
 
     override fun onDestroy() {
         Likes.onChange = null
+        listening?.stop()
+        listening = null
         recovery?.stop()
         recovery = null
         session?.run {

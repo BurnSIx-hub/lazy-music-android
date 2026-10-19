@@ -242,7 +242,7 @@ class MainActivity : ComponentActivity() {
         }
         tab = Tab.SEARCH
         val q = query.trim()
-        if (Links.videoIdFrom(q) != null || Links.playlistIdFrom(q) != null || Yandex.link(q) != null) {
+        if (Links.videoIdFrom(q) != null || Links.playlistIdFrom(q) != null || Yandex.link(q) != null || Spotify.link(q) != null) {
             // Вставили ссылку — открываем её, а не ищем
             playlistUrl = q
             query = ""
@@ -482,7 +482,7 @@ class MainActivity : ComponentActivity() {
     private fun openLink() {
         val raw = playlistUrl.trim()
         if (raw.isEmpty()) return
-        // Яндекс Музыка — импорт в свой плейлист, ход виден на плашке
+        // Яндекс Музыка и Spotify — импорт в свой плейлист, ход виден на плашке
         if (YandexImport.start(raw)) return
         val playlistId = Links.playlistIdFrom(raw)
         val videoId = Links.videoIdFrom(raw)

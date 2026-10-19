@@ -2394,14 +2394,14 @@
    "id": "A138"
   },
   {
-   "text": "Основное",
+   "text": "Общие",
    "places": [
     {
      "file": "SettingsParts.kt",
      "line": 76,
      "start": 3283,
-     "raw": "\"Основное\"",
-     "text": "Основное",
+     "raw": "\"Общие\"",
+     "text": "Общие",
      "subs": [],
      "multiline": false,
      "where": "название группы настроек в списке и заголовок открытой группы (язык, обновления, ключ YouTube)",
@@ -2430,14 +2430,14 @@
    "id": "A140"
   },
   {
-   "text": "Связь",
+   "text": "Сопряжение",
    "places": [
     {
      "file": "SettingsParts.kt",
      "line": 78,
      "start": 3471,
-     "raw": "\"Связь\"",
-     "text": "Связь",
+     "raw": "\"Сопряжение\"",
+     "text": "Сопряжение",
      "subs": [],
      "multiline": false,
      "where": "название группы настроек в списке и заголовок открытой группы (компьютер и модуль Foundry)",
@@ -2554,6 +2554,118 @@
    ],
    "group": "01 Оболочка, поиск и настройки",
    "id": "A147"
+  },
+  {
+   "text": "Беру список из Spotify…",
+   "places": [
+    {
+     "file": "YandexImport.kt",
+     "line": 157,
+     "start": 6321,
+     "raw": "\"Беру список из Spotify…\"",
+     "text": "Беру список из Spotify…",
+     "subs": [],
+     "multiline": false,
+     "where": "плашка внизу, пока список берётся из Spotify",
+     "wrapped": true
+    }
+   ],
+   "group": "17 Сообщения",
+   "id": "A148"
+  },
+  {
+   "text": "Spotify по ссылке отдаёт только первые {число} треков",
+   "places": [
+    {
+     "file": "YandexImport.kt",
+     "line": 176,
+     "start": 7385,
+     "raw": "\"Spotify по ссылке отдаёт только первые {число} треков\"",
+     "text": "Spotify по ссылке отдаёт только первые {число} треков",
+     "subs": [],
+     "multiline": false,
+     "where": "всплывающее сообщение: в плейлисте больше 100 треков, взяты первые 100",
+     "wrapped": true
+    }
+   ],
+   "group": "17 Сообщения",
+   "id": "A149"
+  },
+  {
+   "text": "Плейлист не найден или закрыт",
+   "places": [
+    {
+     "file": "Spotify.kt",
+     "line": 68,
+     "start": 3174,
+     "raw": "\"Плейлист не найден или закрыт\"",
+     "text": "Плейлист не найден или закрыт",
+     "subs": [],
+     "multiline": false,
+     "where": "плашка: ссылка Spotify не открылась (плейлиста нет или он закрытый)",
+     "wrapped": true
+    },
+    {
+     "file": "Spotify.kt",
+     "line": 112,
+     "start": 5421,
+     "raw": "\"Плейлист не найден или закрыт\"",
+     "text": "Плейлист не найден или закрыт",
+     "subs": [],
+     "multiline": false,
+     "where": "плашка: ссылка Spotify не открылась (плейлиста нет или он закрытый)",
+     "wrapped": true
+    }
+   ],
+   "group": "17 Сообщения",
+   "id": "A150"
+  },
+  {
+   "text": "Spotify ответил {код ответа}",
+   "places": [
+    {
+     "file": "Spotify.kt",
+     "line": 113,
+     "start": 5492,
+     "raw": "\"Spotify ответил {код ответа}\"",
+     "text": "Spotify ответил {код ответа}",
+     "subs": [],
+     "multiline": false,
+     "where": "плашка: Spotify ответил ошибкой",
+     "wrapped": true
+    }
+   ],
+   "group": "17 Сообщения",
+   "id": "A151"
+  },
+  {
+   "text": "Некорректный ответ Spotify",
+   "places": [
+    {
+     "file": "Spotify.kt",
+     "line": 81,
+     "start": 3828,
+     "raw": "\"Некорректный ответ Spotify\"",
+     "text": "Некорректный ответ Spotify",
+     "subs": [],
+     "multiline": false,
+     "where": "плашка: Spotify ответил непонятно",
+     "wrapped": true
+    },
+    {
+     "file": "Spotify.kt",
+     "line": 82,
+     "start": 3931,
+     "raw": "\"Некорректный ответ Spotify\"",
+     "text": "Некорректный ответ Spotify",
+     "subs": [],
+     "multiline": false,
+     "where": "плашка: Spotify ответил непонятно",
+     "wrapped": true
+    }
+   ],
+   "group": "17 Сообщения",
+   "id": "A152"
   }
  ]
 }
