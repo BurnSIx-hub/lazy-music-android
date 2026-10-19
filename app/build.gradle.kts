@@ -11,8 +11,8 @@ android {
         applicationId = "com.lazymusic.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 23
-        versionName = "1.11.4"
+        versionCode = 24
+        versionName = "1.11.5"
 
         // Только arm64: youtubedl-android тащит свой Python на каждую ABI,
         // а проверяем на Galaxy S23. Остальные ABI — когда понадобятся.

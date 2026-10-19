@@ -108,12 +108,14 @@ object Downloads {
                 Log.e(TAG, "скачали ${track.id}, но файла нет")
                 false
             } else {
-                Log.i(TAG, "скачан ${track.id}: ${file.length() / 1024} КБ")
+                // В общий журнал — его присылают, когда «не качается»
+                Diag.i("${track.id} — скачан: ${file.length() / 1024} КБ")
                 true
             }
         } catch (t: Throwable) {
             if (t is kotlinx.coroutines.CancellationException) throw t
             failures[track.id] = Diag.cause(t, 200)
+            Diag.w("${track.id} — не скачался: ${Diag.cause(t, 200)}")
             Log.e(TAG, "не скачался ${track.id}", t)
             false
         } finally {

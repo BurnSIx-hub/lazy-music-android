@@ -97,6 +97,7 @@ object Diag {
             "Без сети: ${Settings.offlineLists.size} пл., по мобильной — " +
                 if (Settings.offlineOnMobile) "да" else "нет"
         )
+        for ((name, done) in Offline.progress(context)) out.appendLine("  «$name» — скачано $done")
         out.appendLine("Плейлисты:")
         for (name in Settings.playlistNames()) {
             out.appendLine("  «$name» — ${Settings.playlist(name).size}")

@@ -44,8 +44,26 @@ object Offline {
     /** Пауза между треками. */
     private const val PAUSE_MS = 1_500L
 
-    /** Столько неудач подряд — и стоп до смены сети или правки плейлистов. */
+    /**
+     * Попыток на трек — каждая со свежей ссылкой, как при игре. У знакомой
+     * (2026-10-19) аудиосервер отвергал больше половины ссылок, игра
+     * пробивалась со второй-третьей, а скачивание сдавалось с первой.
+     */
+    private const val TRIES = 4
+
+    /** Пауза между попытками одного трека. */
+    private const val RETRY_MS = 3_000L
+
+    /** Столько треков подряд не скачались — передышка [BREAK_MS]. */
     private const val STREAK = 3
+
+    /**
+     * Передышка после серии неудач, потом заново — сама, без смены сети:
+     * Wi-Fi дома не меняется, и знакомая включала кнопку заново раз в
+     * полчаса, получая по треку. Каждая следующая вдвое длиннее, до часа.
+     */
+    private const val BREAK_MS = 5 * 60_000L
+    private const val BREAK_MAX_MS = 60 * 60_000L
 
     /** Пауза после правки библиотеки: десяток 👍 подряд — один заход. */
     private const val SETTLE_MS = 3_000L
@@ -63,7 +81,7 @@ object Offline {
     var waitingWifi by mutableStateOf(false)
         private set
 
-    /** Не скачались в этот раз — не повторяем до следующего запуска. */
+    /** Не скачались в этот заход — повторяем после передышки или смены сети. */
     private val failed = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
 
     fun attach(context: Context) {
@@ -76,7 +94,7 @@ object Offline {
                     override fun onAvailable(network: Network) {
                         // Неудачи могли быть от пропавшей сети — пробуем их снова
                         failed.clear()
-                        kick()
+                        kick(again = true)
                     }
                     override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) {
                         if (waitingWifi) kick()
@@ -94,7 +112,7 @@ object Offline {
         Diag.i("без сети: «$name» ${if (name in lists) "включён" else "выключен"}")
         if (name in lists) {
             failed.clear()
-            kick()
+            kick(again = true)
         }
     }
 
@@ -144,12 +162,42 @@ object Offline {
         return out
     }
 
-    /** Докачать недостающее — если не качает уже. */
-    fun kick() {
+    /** Один трек, до [TRIES] попыток. */
+    private suspend fun fetch(track: Track): Boolean {
+        repeat(TRIES) { attempt ->
+            if (attempt > 0) delay(RETRY_MS)
+            if (Downloads.fetch(app, track)) return true
+            // Нет сети или Wi-Fi пропал — попытки не тратим
+            if (!allowed()) return false
+        }
+        return false
+    }
+
+    /** Сколько из плейлиста уже в кэше — для сводки в журнале ([Diag.export]). */
+    fun progress(context: Context): List<Pair<String, String>> {
+        val have = Cache.dir(context).listFiles()?.mapTo(HashSet()) { it.nameWithoutExtension } ?: HashSet()
+        return lists.map { name ->
+            val tracks = Settings.playlist(name)
+            name to "${tracks.count { it.id in have }} из ${tracks.size}"
+        }
+    }
+
+    /** Идёт передышка после серии неудач — её можно прервать. */
+    @Volatile private var resting = false
+
+    /**
+     * Докачать недостающее — если не качает уже. again — прервать
+     * передышку: человек сам включил плейлист или сеть сменилась.
+     */
+    fun kick(again: Boolean = false) {
         if (!::app.isInitialized || lists.isEmpty()) return
-        if (worker?.isActive == true) return
+        if (worker?.isActive == true) {
+            if (!again || !resting) return
+            worker?.cancel()
+        }
         worker = scope.launch {
             var streak = 0
+            var pause = BREAK_MS
             while (true) {
                 val todo = wanted()
                 if (todo.isEmpty()) {
@@ -163,14 +211,21 @@ object Offline {
                 }
                 waitingWifi = false
                 val track = todo.first()
-                if (Downloads.fetch(app, track)) {
+                if (fetch(track)) {
                     streak = 0
+                    pause = BREAK_MS
                 } else {
                     failed += track.id
-                    // Подряд не качается — беда общая (сеть, YouTube); не долбим
+                    // Подряд не качается — беда общая (сеть, YouTube); не
+                    // долбим, а отдыхаем и пробуем снова, уже и упавшие
                     if (++streak >= STREAK) {
-                        Diag.w("без сети: $STREAK неудачи подряд — жду смены сети")
-                        break
+                        Diag.w("без сети: $STREAK трека подряд не скачались — пауза ${pause / 60_000} мин")
+                        resting = true
+                        try { delay(pause) } finally { resting = false }
+                        pause = (pause * 2).coerceAtMost(BREAK_MAX_MS)
+                        streak = 0
+                        failed.clear()
+                        continue
                     }
                 }
                 delay(PAUSE_MS)
