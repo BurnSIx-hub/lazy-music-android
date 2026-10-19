@@ -84,8 +84,8 @@ fun HomeScreen(
         Column {
             search()
             EmptyHint(
-                "Вы ещё ничего не слушали.\n" +
-                    "Загляните в «Поиск» или откройте «Плейлисты» — там есть скачанное."
+                tr("Вы ещё ничего не слушали.\nЗагляните в «Поиск» или откройте " +
+                    "«Плейлисты» — там есть скачанное.")
             )
         }
         return
@@ -98,7 +98,7 @@ fun HomeScreen(
         item {
             search()
             Text(
-                text = if (lastIsCurrent && playing) "Сейчас играет" else "Продолжить",
+                text = if (lastIsCurrent && playing) tr("Сейчас играет") else tr("Продолжить"),
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp)
             )
@@ -134,7 +134,7 @@ fun HomeScreen(
                         }
                         if (last.id in cachedIds) {
                             Text(
-                                text = "скачан",
+                                text = tr("скачан"),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.primary
                             )
@@ -148,7 +148,7 @@ fun HomeScreen(
                         Icon(
                             if (lastIsCurrent && playing) Icons.Default.Pause
                             else Icons.Default.PlayArrow,
-                            contentDescription = if (lastIsCurrent && playing) "Пауза" else "Играть",
+                            contentDescription = if (lastIsCurrent && playing) tr("Пауза") else tr("Играть"),
                             modifier = Modifier.size(28.dp)
                         )
                     }
@@ -161,7 +161,7 @@ fun HomeScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Может понравиться",
+                        text = tr("Может понравиться"),
                         style = MaterialTheme.typography.titleSmall,
                         modifier = Modifier.weight(1f)
                     )
@@ -173,7 +173,7 @@ fun HomeScreen(
                         Spacer(Modifier.width(12.dp))
                     } else {
                         IconButton(onClick = onRefreshPicks) {
-                            Icon(Icons.Default.Refresh, contentDescription = "Обновить подборку")
+                            Icon(Icons.Default.Refresh, contentDescription = tr("Обновить подборку"))
                         }
                     }
                 }
@@ -189,7 +189,7 @@ fun HomeScreen(
                 }
                 if (picks.isEmpty()) {
                     Text(
-                        text = "Подбираю по вашему вкусу…",
+                        text = tr("Подбираю по вашему вкусу…"),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 16.dp)
@@ -199,7 +199,7 @@ fun HomeScreen(
 
             if (recent.size > 1) {
                 Text(
-                    text = "Недавнее",
+                    text = tr("Недавнее"),
                     style = MaterialTheme.typography.titleSmall,
                     modifier = Modifier.padding(start = 16.dp, top = 20.dp, bottom = 4.dp)
                 )
@@ -241,10 +241,10 @@ private fun HomeSearch(
         OutlinedTextField(
             value = query,
             onValueChange = onQueryChange,
-            placeholder = { Text("Поиск") },
+            placeholder = { Text(tr("Поиск")) },
             leadingIcon = {
                 IconButton(onClick = { focus.clearFocus(); onSearch() }) {
-                    Icon(Icons.Default.Search, contentDescription = "Найти")
+                    Icon(Icons.Default.Search, contentDescription = tr("Найти"))
                 }
             },
             singleLine = true,

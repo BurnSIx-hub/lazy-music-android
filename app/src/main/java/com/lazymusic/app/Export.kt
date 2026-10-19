@@ -52,7 +52,7 @@ object Export {
         val artist = artistOf(track.artist)
         val base = if (artist.isNotBlank() && !track.title.lowercase().contains(artist.lowercase()))
             "$artist — ${track.title}" else track.title
-        val name = base + if (eq) " (эквалайзер)" else ""
+        val name = base + if (eq) tr(" (эквалайзер)") else ""
         return name.replace(Regex("[<>:\"/\\\\|?*\\u0000-\\u001f]"), " ").replace(Regex("\\s+"), " ").trim()
             .take(150).ifBlank { "трек" } + ".m4a"
     }
@@ -61,7 +61,7 @@ object Export {
         val app = context.applicationContext
         val params = Eq.params
         val name = fileName(track, params.gains != null)
-        val plaque = Plaques.notice("Скачивание «${track.title}»…", "Беру звук")
+        val plaque = Plaques.notice(tr("Скачивание «{название трека}»…", "название трека" to track.title), tr("Беру звук"))
         plaque.progress = 0f
         scope.launch {
             try {
@@ -86,19 +86,19 @@ object Export {
                         File(app.cacheDir, "export").deleteRecursively()
                     }
                 }
-                plaque.text = "Скачано"
+                plaque.text = tr("Скачано")
                 plaque.sub = name
                 plaque.progress = null
                 plaque.actions = listOf(
-                    Plaque.Action("Закрыть", quiet = true) { plaque.close() },
-                    Plaque.Action("Показать") { show(app, uri); plaque.close() }
+                    Plaque.Action(tr("Закрыть"), quiet = true) { plaque.close() },
+                    Plaque.Action(tr("Показать")) { show(app, uri); plaque.close() }
                 )
             } catch (t: Throwable) {
                 Diag.w("${track.id}: трек не сохранился: ${Diag.chain(t)}")
-                plaque.text = "Не скачано"
+                plaque.text = tr("Не скачано")
                 plaque.sub = t.message ?: t::class.simpleName.orEmpty()
                 plaque.progress = null
-                plaque.actions = listOf(Plaque.Action("Закрыть") { plaque.close() })
+                plaque.actions = listOf(Plaque.Action(tr("Закрыть")) { plaque.close() })
             }
         }
     }
@@ -124,7 +124,7 @@ object Export {
             while (total < 0 || pos < total) {
                 val req = Request.Builder().url(url).header("Range", "bytes=$pos-${pos + CHUNK - 1}").build()
                 http.newCall(req).execute().use { resp ->
-                    if (resp.code != 200 && resp.code != 206) throw IOException("звук не получен (${resp.code})")
+                    if (resp.code != 200 && resp.code != 206) throw IOException(tr("звук не получен ({код ответа})", "код ответа" to resp.code))
                     if (total < 0) total = resp.header("Content-Range")?.substringAfterLast('/')?.toLongOrNull() ?: -1L
                     val got = resp.body!!.byteStream().copyTo(out)
                     pos += got
@@ -146,7 +146,7 @@ object Export {
         ex.setDataSource(source.path)
         val ti = (0 until ex.trackCount).firstOrNull {
             ex.getTrackFormat(it).getString(MediaFormat.KEY_MIME).orEmpty().startsWith("audio/")
-        } ?: throw IOException("в файле нет звука")
+        } ?: throw IOException(tr("в файле нет звука"))
         ex.selectTrack(ti)
         val inFmt = ex.getTrackFormat(ti)
         val durationUs = if (inFmt.containsKey(MediaFormat.KEY_DURATION)) inFmt.getLong(MediaFormat.KEY_DURATION) else 0L
@@ -171,7 +171,7 @@ object Export {
         var decoderDone = false
         var encoderDone = false
         var told = -1
-        progress("Обрабатываю", 0.02f)
+        progress(tr("Обрабатываю"), 0.02f)
 
         /** Забрать готовое у кодировщика и уложить в файл. */
         fun drainEncoder(untilEnd: Boolean) {
@@ -253,7 +253,7 @@ object Export {
                             val f = dec.outputFormat
                             rate = f.getInteger(MediaFormat.KEY_SAMPLE_RATE)
                             channels = f.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
-                            if (channels !in 1..2) throw IOException("каналов $channels — так не умею")
+                            if (channels !in 1..2) throw IOException(tr("каналов {каналов} — так не умею", "каналов" to channels))
                             floatPcm = f.containsKey(MediaFormat.KEY_PCM_ENCODING) &&
                                 f.getInteger(MediaFormat.KEY_PCM_ENCODING) == AudioFormat.ENCODING_PCM_FLOAT
                             chain = Eq.Chain(rate, channels)
@@ -298,7 +298,7 @@ object Export {
                                 val pct = (share * 100).toInt()
                                 if (pct != told) {
                                     told = pct
-                                    progress("Обрабатываю", 0.02f + share * 0.96f)
+                                    progress(tr("Обрабатываю"), 0.02f + share * 0.96f)
                                 }
                             }
                         }
@@ -306,7 +306,7 @@ object Export {
                 }
             }
             Diag.i("сохранение: эквалайзер ${inEq / 1_000_000} мс, кодировщик ${inEnc / 1_000_000} мс, всего ${(System.nanoTime() - began) / 1_000_000} мс")
-            if (enc == null) throw IOException("пустой файл")
+            if (enc == null) throw IOException(tr("пустой файл"))
             feedEncoder(null)
             while (!encoderDone) drainEncoder(true)
         } finally {
@@ -315,7 +315,7 @@ object Export {
             muxer?.let { runCatching { it.stop() }; it.release() }
             ex.release()
         }
-        if (out.length() < 1024) throw IOException("пустой файл")
+        if (out.length() < 1024) throw IOException(tr("пустой файл"))
     }
 
     /** Готовый файл — в «Музыка/Lazy Music»: системный медиастор или папка приложения. */
@@ -332,7 +332,7 @@ object Export {
                 }
                 val resolver = context.contentResolver
                 val uri = resolver.insert(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, values)
-                    ?: throw IOException("Android не дал места для файла")
+                    ?: throw IOException(tr("Android не дал места для файла"))
                 resolver.openOutputStream(uri)!!.use { out -> file.inputStream().use { it.copyTo(out) } }
                 values.clear()
                 values.put(MediaStore.Audio.Media.IS_PENDING, 0)
@@ -353,6 +353,6 @@ object Export {
         val intent = Intent(Intent.ACTION_VIEW).setDataAndType(uri, "audio/mp4")
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
         runCatching { context.startActivity(intent) }
-            .onFailure { Plaques.toast("Нечем открыть файл") }
+            .onFailure { Plaques.toast(tr("Нечем открыть файл")) }
     }
 }

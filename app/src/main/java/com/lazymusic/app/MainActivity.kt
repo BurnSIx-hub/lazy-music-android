@@ -148,6 +148,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Язык системы могли сменить, пока приложение жило
+        Lang.apply()
         host = PlayerHost(this)
         requestNotificationsIfNeeded()
         if (!Settings.hasApiKey) settingsOpen = true
@@ -207,7 +209,7 @@ class MainActivity : ComponentActivity() {
         // Ввоз идёт до появления экрана, поэтому сказать о нём можно
         // только здесь — и только раз
         if (Import.arrived > 0) {
-            status = "Ввезено треков: ${Import.arrived}"
+            status = tr("Ввезено треков: {число}", "число" to Import.arrived)
             Import.clear()
             revision++
         }
@@ -259,7 +261,7 @@ class MainActivity : ComponentActivity() {
     /** Открывает адрес в браузере — для подсказки, где взять ключ. */
     private fun openInBrowser(url: String) {
         runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
-            .onFailure { status = "не нашлось, чем открыть ссылку" }
+            .onFailure { status = tr("не нашлось, чем открыть ссылку") }
     }
 
     /**
@@ -270,20 +272,20 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             val file = withContext(Dispatchers.IO) { runCatching { Diag.export(this@MainActivity) }.getOrNull() }
             if (file == null) {
-                Plaques.toast("Не вышло собрать логи")
+                Plaques.toast(tr("Не вышло собрать логи"))
                 return@launch
             }
             val uri = FileProvider.getUriForFile(this@MainActivity, "$packageName.files", file)
             val send = Intent(Intent.ACTION_SEND).apply {
                 type = "text/plain"
                 putExtra(Intent.EXTRA_STREAM, uri)
-                putExtra(Intent.EXTRA_SUBJECT, "Логи Lazy Music")
+                putExtra(Intent.EXTRA_SUBJECT, tr("Логи Lazy Music"))
                 // Через окно выбора право читать файл доезжает только с clipData
                 clipData = ClipData.newRawUri(file.name, uri)
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
-            runCatching { startActivity(Intent.createChooser(send, "Отправить логи")) }
-                .onFailure { Plaques.toast("Нет приложения, которое примет файл") }
+            runCatching { startActivity(Intent.createChooser(send, tr("Отправить логи"))) }
+                .onFailure { Plaques.toast(tr("Нет приложения, которое примет файл")) }
         }
     }
 
@@ -325,7 +327,7 @@ class MainActivity : ComponentActivity() {
                 bytes
             }
             refreshCache()
-            status = "кэш очищен, освободилось ${freed / (1024 * 1024)} МБ"
+            status = tr("кэш очищен, освободилось {МБ} МБ", "МБ" to (freed / (1024 * 1024)))
         }
     }
 
@@ -430,13 +432,13 @@ class MainActivity : ComponentActivity() {
         results = emptyList()
         resultsTitle = ""
         searchPage = null
-        work("ищу «$q»…", Job.SEARCH) {
+        work(tr("ищу «{запрос}»…", "запрос" to q), Job.SEARCH) {
             val found = YouTubeApi.search(q)
-            if (found.tracks.isEmpty()) error("ничего не нашлось")
+            if (found.tracks.isEmpty()) error(tr("ничего не нашлось"))
             results = found.tracks
-            resultsTitle = "Поиск: $q"
+            resultsTitle = tr("Поиск: {запрос}", "запрос" to q)
             searchPage = found.nextPage
-            "найдено: ${found.tracks.size}"
+            tr("найдено: {число}", "число" to found.tracks.size)
         }
     }
 
@@ -451,14 +453,14 @@ class MainActivity : ComponentActivity() {
         val q = query.trim()
         val page = searchPage ?: return
         if (q.isEmpty()) return
-        work("догружаю…", Job.MORE) {
+        work(tr("догружаю…"), Job.MORE) {
             val found = YouTubeApi.search(q, page)
             // Повторы бывают: страницы у API слегка перекрываются
             val known = results.mapTo(HashSet()) { it.id }
             val fresh = found.tracks.filterNot { it.id in known }
             results = results + fresh
             searchPage = found.nextPage
-            if (fresh.isEmpty()) "новых находок нет" else "добавлено: ${fresh.size}"
+            if (fresh.isEmpty()) tr("новых находок нет") else tr("добавлено: {число}", "число" to fresh.size)
         }
     }
 
@@ -481,32 +483,32 @@ class MainActivity : ComponentActivity() {
         if (playlistId != null && Settings.hasApiKey) {
             results = emptyList()
             resultsTitle = ""
-            work("открываю плейлист…", Job.PLAYLIST) {
+            work(tr("открываю плейлист…"), Job.PLAYLIST) {
                 val loaded = YouTubeApi.playlistItems(playlistId)
-                if (loaded.isEmpty()) error("в плейлисте нет доступных треков")
+                if (loaded.isEmpty()) error(tr("в плейлисте нет доступных треков"))
                 results = loaded
-                resultsTitle = YouTubeApi.playlistTitle(playlistId) ?: "Плейлист"
-                "загружено: ${loaded.size}"
+                resultsTitle = YouTubeApi.playlistTitle(playlistId) ?: tr("Плейлист")
+                tr("загружено: {число}", "число" to loaded.size)
             }
             return
         }
 
         if (videoId != null) {
-            work("открываю ролик…", Job.PLAYLIST) {
+            work(tr("открываю ролик…"), Job.PLAYLIST) {
                 val track = Links.track(this@MainActivity, videoId)
                 results = listOf(track)
-                resultsTitle = "По ссылке"
+                resultsTitle = tr("По ссылке")
                 host.play(listOf(track), 0)
                 goNow()
-                "играю: ${track.title}"
+                tr("играю: {название трека}", "название трека" to track.title)
             }
             return
         }
 
         status = if (playlistId != null)
-            "это плейлист, а для плейлистов нужен ключ API — задайте его в настройках"
+            tr("это плейлист, а для плейлистов нужен ключ API — задайте его в настройках")
         else
-            "не разобрал ссылку: нужна ссылка на ролик или плейлист YouTube"
+            tr("не разобрал ссылку: нужна ссылка на ролик или плейлист YouTube")
     }
 
     /**
@@ -521,7 +523,7 @@ class MainActivity : ComponentActivity() {
         goNow()
     }
 
-    private fun updateEngine() = work("проверяю yt-dlp…", Job.ENGINE) {
+    private fun updateEngine() = work(tr("проверяю yt-dlp…"), Job.ENGINE) {
         // Единственная здесь блокирующая работа — её и уводим в фон сами
         val outcome = withContext(Dispatchers.IO) { Engine.update(this@MainActivity, "вручную") }
         "yt-dlp ${outcome.describe()}"
@@ -573,11 +575,11 @@ class MainActivity : ComponentActivity() {
         topBar = {
             Column {
                 TopAppBar(
-                    title = { Text(if (settingsOpen) "Настройки" else tabTitle(tab)) },
+                    title = { Text(if (settingsOpen) tr("Настройки") else tabTitle(tab)) },
                     navigationIcon = {
                         if (settingsOpen) {
                             IconButton(onClick = { settingsOpen = false }) {
-                                Icon(Icons.Default.ArrowBack, contentDescription = "Назад")
+                                Icon(Icons.Default.ArrowBack, contentDescription = tr("Назад"))
                             }
                         }
                     },
@@ -586,14 +588,14 @@ class MainActivity : ComponentActivity() {
                         IconButton(onClick = { eqOpen = true }) {
                             Icon(
                                 LazyEqIcon,
-                                contentDescription = "Эквалайзер",
+                                contentDescription = tr("Эквалайзер"),
                                 tint = if (Eq.on) androidx.compose.ui.graphics.Color(0xFFFF4D55)
                                 else MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                         if (!settingsOpen) {
                             IconButton(onClick = { settingsOpen = true }) {
-                                Icon(Icons.Default.Settings, contentDescription = "Настройки")
+                                Icon(Icons.Default.Settings, contentDescription = tr("Настройки"))
                             }
                         }
                     }
@@ -620,7 +622,7 @@ class MainActivity : ComponentActivity() {
                             Recommend.refreshIfStale(this@MainActivity)
                         },
                         icon = { Icon(Icons.Default.Home, contentDescription = null) },
-                        label = { Text("Главная") }
+                        label = { Text(tr("Главная")) }
                     )
                     NavigationBarItem(
                         selected = tab == Tab.NOW,
@@ -628,19 +630,19 @@ class MainActivity : ComponentActivity() {
                         icon = { Icon(Icons.Default.PlayCircle, contentDescription = null) },
                         // Короче, чем заголовок: «Играет сейчас» в нижнем меню
                         // переносится на две строки
-                        label = { Text("Сейчас", maxLines = 1) }
+                        label = { Text(tr("Сейчас"), maxLines = 1) }
                     )
                     NavigationBarItem(
                         selected = tab == Tab.LIBRARY,
                         onClick = { goTab(Tab.LIBRARY); revision++ },
                         icon = { Icon(Icons.Default.LibraryMusic, contentDescription = null) },
-                        label = { Text("Плейлисты") }
+                        label = { Text(tr("Плейлисты")) }
                     )
                     NavigationBarItem(
                         selected = tab == Tab.SEARCH,
                         onClick = { goTab(Tab.SEARCH) },
                         icon = { Icon(Icons.Default.Search, contentDescription = null) },
-                        label = { Text("Поиск") }
+                        label = { Text(tr("Поиск")) }
                     )
                 }
             }
@@ -808,9 +810,9 @@ class MainActivity : ComponentActivity() {
 
     private fun tabTitle(t: Tab) = when (t) {
         Tab.HOME -> "Lazy Music"
-        Tab.NOW -> "Играет сейчас"
-        Tab.LIBRARY -> "Плейлисты"
-        Tab.SEARCH -> "Поиск"
+        Tab.NOW -> tr("Играет сейчас")
+        Tab.LIBRARY -> tr("Плейлисты")
+        Tab.SEARCH -> tr("Поиск")
     }
 
     /**
@@ -820,6 +822,7 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun SettingsPage() {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(vertical = 6.dp)) {
+            LanguageSection()
             UpdatesSection(this@MainActivity)
 
             var keyInput by remember { mutableStateOf(Settings.apiKey) }
@@ -827,19 +830,19 @@ class MainActivity : ComponentActivity() {
             var reveal by remember { mutableStateOf(false) }
             Section(
                 "YouTube Data API",
-                "Создайте ключ в Google Cloud Console: проект → «YouTube Data API v3» → «Создать учётные данные» → ключ API."
+                tr("Создайте ключ в Google Cloud Console: проект → «YouTube Data API v3» → «Создать учётные данные» → ключ API.")
             ) {
                 OutlinedTextField(
                     value = keyInput,
                     onValueChange = { keyInput = it },
-                    label = { Text("Ключ YouTube Data API v3") },
+                    label = { Text(tr("Ключ YouTube Data API v3")) },
                     singleLine = true,
                     visualTransformation = if (reveal) VisualTransformation.None else PasswordVisualTransformation(),
                     trailingIcon = {
                         IconButton(onClick = { reveal = !reveal }) {
                             Icon(
                                 if (reveal) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                contentDescription = if (reveal) "Скрыть" else "Показать"
+                                contentDescription = if (reveal) tr("Скрыть") else tr("Показать")
                             )
                         }
                     },
@@ -848,44 +851,44 @@ class MainActivity : ComponentActivity() {
                 Row {
                     TextButton(onClick = {
                         Settings.apiKey = keyInput
-                        Plaques.toast(if (keyInput.isNotBlank()) "Ключ сохранён" else "Ключ убран")
-                    }) { Text("Сохранить") }
+                        Plaques.toast(if (keyInput.isNotBlank()) tr("Ключ сохранён") else tr("Ключ убран"))
+                    }) { Text(tr("Сохранить")) }
                     TextButton(onClick = {
                         openInBrowser("https://console.cloud.google.com/apis/library/youtube.googleapis.com")
-                    }) { Text("Открыть Google Cloud Console") }
+                    }) { Text(tr("Открыть Google Cloud Console")) }
                 }
             }
 
-            Section("Радио") {
+            Section(tr("Радио")) {
                 var wide by remember { mutableStateOf(Settings.wideRadio) }
                 SwitchRow(
-                    "Разнообразить радио",
-                    "Подбирает похожие треки. Сбор занимает до минуты и идёт уже во время игры.",
+                    tr("Разнообразить радио"),
+                    tr("Подбирает похожие треки. Сбор занимает до минуты и идёт уже во время игры."),
                     wide
                 ) { wide = it; Settings.wideRadio = it }
             }
 
             DislikesSection()
 
-            Section("Компьютер") { HubSection() }
+            Section(tr("Компьютер")) { HubSection() }
 
-            Section("Модуль Foundry") {
+            Section(tr("Модуль Foundry")) {
                 ShareSection()
                 TextButton(onClick = {
                     settingsOpen = false
                     openYtMusic()
                 }) {
-                    Text("Забрать понравившееся из YouTube Music")
+                    Text(tr("Забрать понравившееся из YouTube Music"))
                 }
             }
 
-            Section("Скачанное") {
+            Section(tr("Скачанное")) {
                 // Плейлисты без сети (Offline) по умолчанию качаются только по Wi-Fi
                 var mobile by remember { mutableStateOf(Settings.offlineOnMobile) }
                 SwitchRow(
-                    "Скачивать плейлисты по мобильной сети",
-                    if (mobile) "Плейлисты качаются и по мобильной сети"
-                    else "Плейлисты, скачанные для игры без сети, докачиваются только по Wi-Fi",
+                    tr("Скачивать плейлисты по мобильной сети"),
+                    if (mobile) tr("Плейлисты качаются и по мобильной сети")
+                    else tr("Плейлисты, скачанные для игры без сети, докачиваются только по Wi-Fi"),
                     mobile
                 ) {
                     mobile = it
@@ -894,8 +897,7 @@ class MainActivity : ComponentActivity() {
                 }
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "В кэше: ${cachedIds.size} шт., " +
-                        "${Cache.sizeBytes(this@MainActivity) / (1024 * 1024)} МБ",
+                    tr("В кэше: {число} шт., {МБ} МБ", "число" to cachedIds.size, "МБ" to (Cache.sizeBytes(this@MainActivity) / (1024 * 1024))),
                     style = MaterialTheme.typography.bodySmall
                 )
                 if (cachedIds.isNotEmpty()) {
@@ -909,7 +911,7 @@ class MainActivity : ComponentActivity() {
                         } else confirm = true
                     }) {
                         Text(
-                            if (confirm) "Точно удалить всё скачанное?" else "Очистить кэш",
+                            if (confirm) tr("Точно удалить всё скачанное?") else tr("Очистить кэш"),
                             color = if (confirm) MaterialTheme.colorScheme.error
                             else MaterialTheme.colorScheme.primary
                         )
@@ -921,21 +923,21 @@ class MainActivity : ComponentActivity() {
                 // Обновляется он сам — см. Engine. Кнопка оставлена
                 // на случай, когда хочется убедиться своими глазами
                 Text(
-                    "yt-dlp ${Engine.version ?: "встроенный"} — обновляется сам, " +
-                        "при запуске и когда добыча звука ломается.",
+                    tr("yt-dlp {версия yt-dlp} — обновляется сам, при запуске и когда " +
+                        "добыча звука ломается.", "версия yt-dlp" to (Engine.version ?: tr("встроенный"))),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 TextButton(onClick = ::updateEngine, enabled = !busy) {
-                    Text("Проверить обновление")
+                    Text(tr("Проверить обновление"))
                 }
                 Notice(status, MaterialTheme.colorScheme.onSurfaceVariant)
             }
 
-            Section("Журнал") {
+            Section(tr("Журнал")) {
                 // Ник Telegram в пояснении — ссылка (LinkHint)
-                LinkHint("Все логи. В случае какого-либо сбоя отправьте логи @keyno21")
-                TextButton(onClick = ::sendLog) { Text("Отправить логи") }
+                LinkHint(tr("Все логи. В случае какого-либо сбоя отправьте логи @keyno21"))
+                TextButton(onClick = ::sendLog) { Text(tr("Отправить логи")) }
             }
             Spacer(Modifier.height(12.dp))
         }
@@ -952,25 +954,25 @@ class MainActivity : ComponentActivity() {
         var pairing by remember { mutableStateOf(false) }
         if (Hub.paired) {
             Text(
-                "Сопряжён с «${Settings.hubName}». Плейлисты, понравившееся и свои " +
-                    "названия сводятся сами. Последняя сводка: ${ago(Hub.lastSync)}.",
+                tr("Сопряжён с «{имя компьютера}». Плейлисты, понравившееся и свои " +
+                    "названия сводятся сами. Последняя сводка: {когда}.", "имя компьютера" to Settings.hubName, "когда" to ago(Hub.lastSync)),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Row {
                 TextButton(onClick = { Hub.soon(0, Hub.MANUAL) }, enabled = !Hub.busy) {
-                    Text(if (Hub.busy) "Свожу…" else "Свести сейчас")
+                    Text(if (Hub.busy) tr("Свожу…") else tr("Свести сейчас"))
                 }
-                TextButton(onClick = { Hub.unpair() }) { Text("Отвязать") }
+                TextButton(onClick = { Hub.unpair() }) { Text(tr("Отвязать")) }
             }
         } else {
             Text(
-                "Lazy Music на компьютере держит общую библиотеку: плейлисты и " +
-                    "понравившееся становятся одинаковыми здесь, на ПК и в модуле Foundry.",
+                tr("Lazy Music на компьютере держит общую библиотеку: плейлисты и " +
+                    "понравившееся становятся одинаковыми здесь, на ПК и в модуле Foundry."),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            TextButton(onClick = { pairing = true }) { Text("Сопрячь с компьютером") }
+            TextButton(onClick = { pairing = true }) { Text(tr("Сопрячь с компьютером")) }
         }
         Hub.note?.let { Notice(it) }
         if (pairing) PairDialog(onClose = { pairing = false })
@@ -999,47 +1001,48 @@ class MainActivity : ComponentActivity() {
 
         AlertDialog(
             onDismissRequest = onClose,
-            title = { Text("Сопряжение с компьютером") },
+            title = { Text(tr("Сопряжение с компьютером")) },
             text = {
                 Column {
                     Text(
-                        "На компьютере: Lazy Music → Настройки → «Сопрячь телефон». " +
-                            "Появится шестизначный код — введите его здесь.",
+                        tr("На компьютере: Lazy Music → Настройки → «Сопрячь телефон». " +
+                            "Появится шестизначный код — введите его здесь."),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(Modifier.height(10.dp))
                     when {
                         searching -> {
-                            Text("Ищу компьютер в сети…", style = MaterialTheme.typography.bodyMedium)
+                            Text(tr("Ищу компьютер в сети…"), style = MaterialTheme.typography.bodyMedium)
                             LinearProgressIndicator(Modifier.fillMaxWidth().padding(top = 6.dp))
                         }
                         found.isEmpty() && chosen == null -> {
                             Text(
-                                "Не нашёл. Lazy Music на компьютере запущена, и телефон в той же " +
-                                    "сети Wi-Fi? Если да — впишите адрес с экрана компьютера.",
+                                tr("Не нашёл. Lazy Music на компьютере запущена, и " +
+                                    "телефон в той же сети Wi-Fi? Если да — впишите адрес " +
+                                    "с экрана компьютера."),
                                 style = MaterialTheme.typography.bodySmall
                             )
                             OutlinedTextField(
                                 value = manual,
                                 onValueChange = { manual = it },
-                                label = { Text("Адрес компьютера") },
+                                label = { Text(tr("Адрес компьютера")) },
                                 singleLine = true
                             )
                             TextButton(onClick = {
                                 scope.launch {
                                     working = true
                                     chosen = Hub.probe(manual)
-                                    error = if (chosen == null) "По этому адресу Lazy Music не отвечает" else null
+                                    error = if (chosen == null) tr("По этому адресу Lazy Music не отвечает") else null
                                     working = false
                                 }
-                            }, enabled = manual.isNotBlank() && !working) { Text("Проверить") }
+                            }, enabled = manual.isNotBlank() && !working) { Text(tr("Проверить")) }
                         }
                         else -> {
                             for (pc in found) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     RadioButton(selected = chosen == pc, onClick = { chosen = pc })
-                                    Text(pc.name + if (pc.pairing) " — ждёт код" else "")
+                                    Text(pc.name + if (pc.pairing) tr(" — ждёт код") else "")
                                 }
                             }
                         }
@@ -1049,7 +1052,7 @@ class MainActivity : ComponentActivity() {
                         OutlinedTextField(
                             value = code,
                             onValueChange = { v -> code = v.filter { it.isDigit() }.take(6) },
-                            label = { Text("Код с экрана компьютера") },
+                            label = { Text(tr("Код с экрана компьютера")) },
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword)
                         )
@@ -1066,15 +1069,15 @@ class MainActivity : ComponentActivity() {
                             error = Hub.pair(pc, code)
                             working = false
                             if (error == null) {
-                                status = "Сопряжено с «${Settings.hubName}» — свожу библиотеку"
+                                status = tr("Сопряжено с «{имя компьютера}» — свожу библиотеку", "имя компьютера" to Settings.hubName)
                                 onClose()
                             }
                         }
                     },
                     enabled = chosen != null && code.length == 6 && !working
-                ) { Text(if (working) "Сопрягаю…" else "Сопрячь") }
+                ) { Text(if (working) tr("Сопрягаю…") else tr("Сопрячь")) }
             },
-            dismissButton = { TextButton(onClick = onClose) { Text("Отмена") } }
+            dismissButton = { TextButton(onClick = onClose) { Text(tr("Отмена")) } }
         )
     }
 
@@ -1099,17 +1102,17 @@ class MainActivity : ComponentActivity() {
                     on = want
                     Settings.shareLibrary = want
                     if (want) {
-                        if (!Share.start()) status = "Порт ${Share.PORT} занят — раздача не включилась"
+                        if (!Share.start()) status = tr("Порт {порт} занят — раздача не включилась", "порт" to Share.PORT)
                     } else Share.stop()
                 }
             )
             Spacer(Modifier.width(12.dp))
             Column {
-                Text("Отдавать библиотеку компьютеру")
+                Text(tr("Отдавать библиотеку компьютеру"))
                 Text(
-                    "Модуль Foundry заберёт плейлисты по локальной сети. " +
-                        "Работает, пока приложение открыто или играет музыка: " +
-                        "уснувший телефон Android замораживает целиком.",
+                    tr("Модуль Foundry заберёт плейлисты по локальной сети. Работает, " +
+                        "пока приложение открыто или играет музыка: уснувший телефон " +
+                        "Android замораживает целиком."),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1120,8 +1123,7 @@ class MainActivity : ComponentActivity() {
         Spacer(Modifier.height(8.dp))
         if (address == null) {
             Text(
-                "Телефон не в локальной сети — подключись к тому же Wi-Fi, " +
-                    "что и компьютер.",
+                tr("Телефон не в локальной сети — подключись к тому же Wi-Fi, что и компьютер."),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.error
             )
@@ -1130,18 +1132,18 @@ class MainActivity : ComponentActivity() {
         // Выделяемый текст: адрес удобнее скопировать, чем переписывать
         SelectionContainer {
             Column {
-                Text("Адрес: $address", style = MaterialTheme.typography.bodyMedium)
-                Text("Код: $token", style = MaterialTheme.typography.bodyMedium)
+                Text(tr("Адрес: {адрес}", "адрес" to address), style = MaterialTheme.typography.bodyMedium)
+                Text(tr("Код: {код}", "код" to token), style = MaterialTheme.typography.bodyMedium)
             }
         }
         Text(
-            "Эти две строки один раз вводятся в модуле — кнопка с телефоном " +
-                "над списком плейлистов.",
+            tr("Эти две строки один раз вводятся в модуле — кнопка с телефоном над " +
+                "списком плейлистов."),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         TextButton(onClick = { token = Settings.newShareToken() }) {
-            Text("Сменить код")
+            Text(tr("Сменить код"))
         }
     }
 }

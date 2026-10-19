@@ -44,8 +44,21 @@ object WhatsNew {
 
     class Section(val version: String, val items: List<String>)
 
-    /** Что показать; пусто — карточки нет. */
-    var sections by mutableStateOf<List<Section>>(emptyList()); private set
+    /** Какие версии показать; пусто — карточки нет. */
+    private var shown by mutableStateOf<List<String>>(emptyList())
+
+    /** Разделы `CHANGES.md` и английского `CHANGES.en.md`. */
+    private var ru: List<Section> = emptyList()
+    private var en: List<Section> = emptyList()
+
+    /**
+     * Что показать — на языке приложения. Язык могут сменить и при
+     * открытой карточке; английского раздела нет — русский.
+     */
+    val sections: List<Section>
+        get() = shown.mapNotNull { v ->
+            (if (Lang.english) en.firstOrNull { it.version == v } else null) ?: ru.firstOrNull { it.version == v }
+        }
 
     /**
      * Метка закрытой карточки: версия и номер сборки. Одна версия может
@@ -56,9 +69,7 @@ object WhatsNew {
     fun check(context: Context) {
         val version = Update.current
         if (Settings.seenVersion == mark) return
-        val all = parse(runCatching {
-            context.assets.open("CHANGES.md").bufferedReader().use { it.readText() }
-        }.getOrDefault(""))
+        val all = parse(read(context, "CHANGES.md"))
         val from = all.indexOfFirst { it.version == version }
         // Прежде ничего не отмечали, но уже слушали — значит, это обновление
         val updated = Settings.seenVersion.isNotEmpty() || Settings.recentTracks().isNotEmpty()
@@ -66,12 +77,18 @@ object WhatsNew {
             Settings.seenVersion = mark
             return
         }
-        sections = all.drop(from).take(4).filter { it.items.isNotEmpty() }
+        ru = all
+        en = parse(read(context, "CHANGES.en.md"))
+        shown = all.drop(from).take(4).filter { it.items.isNotEmpty() }.map { it.version }
     }
+
+    private fun read(context: Context, name: String) = runCatching {
+        context.assets.open(name).bufferedReader().use { it.readText() }
+    }.getOrDefault("")
 
     fun close() {
         Settings.seenVersion = mark
-        sections = emptyList()
+        shown = emptyList()
     }
 
     /** Разделы «## версия» и пункты «- …» под ними. */
@@ -112,7 +129,7 @@ fun WhatsNewCard(modifier: Modifier = Modifier) {
     ) {
         Column(Modifier.padding(start = 18.dp, end = 18.dp, top = 20.dp, bottom = 16.dp)) {
             Text(
-                "Что нового?",
+                tr("Что нового?"),
                 color = Color.White,
                 fontSize = 22.sp,
                 fontWeight = FontWeight.Bold,
@@ -150,7 +167,7 @@ fun WhatsNewCard(modifier: Modifier = Modifier) {
             onClick = { WhatsNew.close() },
             modifier = Modifier.align(Alignment.TopEnd).padding(4.dp)
         ) {
-            Icon(Icons.Default.Close, contentDescription = "Закрыть", tint = Color.White)
+            Icon(Icons.Default.Close, contentDescription = tr("Закрыть"), tint = Color.White)
         }
     }
 }

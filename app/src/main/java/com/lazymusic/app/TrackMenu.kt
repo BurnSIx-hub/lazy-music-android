@@ -99,27 +99,27 @@ fun TrackMenu(
             val liked = track.id in Likes
             Item(
                 if (liked) Icons.Default.ThumbUp else Icons.Default.ThumbUpOffAlt,
-                if (liked) "Убрать из понравившегося" else "Нравится",
+                if (liked) tr("Убрать из понравившегося") else tr("Нравится"),
                 accent = liked
             ) { Likes.toggle(track); onChanged() }
 
             val disliked = Taste.list.any { it.id == track.id }
             Item(
                 if (disliked) Icons.Default.ThumbDown else Icons.Default.ThumbDownOffAlt,
-                if (disliked) "Снять дизлайк" else "Не нравится",
-                if (disliked) "Трек снова может попасться в радио и подборке"
-                else "Убрать из радио и подборки, похожих треков станет меньше",
+                if (disliked) tr("Снять дизлайк") else tr("Не нравится"),
+                if (disliked) tr("Трек снова может попасться в радио и подборке")
+                else tr("Убрать из радио и подборки, похожих треков станет меньше"),
                 accent = disliked
             ) { Dislike.toggle(host, track); onDismiss() }
 
-            Item(Icons.Default.Radio, "Радио по треку", "Очередь похожих треков от YouTube") {
+            Item(Icons.Default.Radio, tr("Радио по треку"), tr("Очередь похожих треков от YouTube")) {
                 onRadio(track); onDismiss()
             }
-            Item(Icons.Default.PlaylistPlay, "Играть следующим") {
+            Item(Icons.Default.PlaylistPlay, tr("Играть следующим")) {
                 host.playNext(track); onDismiss()
             }
             if (track.artist.isNotBlank()) {
-                Item(Icons.Default.Person, "К исполнителю", artistOf(track.artist)) {
+                Item(Icons.Default.Person, tr("К исполнителю"), artistOf(track.artist)) {
                     onArtist(track.artist); onDismiss()
                 }
             }
@@ -129,35 +129,35 @@ fun TrackMenu(
             val failure = Downloads.failures[track.id]
             when {
                 running != null -> Item(
-                    null, "Скачивается… ${(running * 100).toInt()}%", "Нажмите, чтобы отменить",
+                    null, tr("Скачивается… {проценты}%", "проценты" to ((running * 100).toInt())), tr("Нажмите, чтобы отменить"),
                     progress = running
                 ) { Downloads.cancel(track.id) }
-                cached -> Item(Icons.Default.DeleteOutline, "Убрать скачанное", "Трек снова будет играть из сети") {
+                cached -> Item(Icons.Default.DeleteOutline, tr("Убрать скачанное"), tr("Трек снова будет играть из сети")) {
                     onRemoveDownload(track)
                 }
                 else -> Item(
-                    Icons.Default.Download, "Скачать",
-                    if (failure != null) "не вышло: $failure" else "Загрузить трек на ваше устройство",
+                    Icons.Default.Download, tr("Скачать"),
+                    if (failure != null) tr("не вышло: {причина}", "причина" to failure) else tr("Загрузить трек на ваше устройство"),
                     error = failure != null
                 ) { onDownload(track) }
             }
 
-            Item(Icons.Default.Edit, "Переименовать", "Под таким же названием будет на компьютере и в модуле") {
+            Item(Icons.Default.Edit, tr("Переименовать"), tr("Под таким же названием будет на компьютере и в модуле")) {
                 renaming = true
             }
 
             // Ссылка на ролик — через «Поделиться»: в Telegram, сообщением, куда угодно
             val context = LocalContext.current
-            Item(Icons.Default.Share, "Поделиться", "Ссылка на трек в YouTube") {
+            Item(Icons.Default.Share, tr("Поделиться"), tr("Ссылка на трек в YouTube")) {
                 val text = listOf(track.title, track.artist).filter { it.isNotBlank() }.joinToString(" — ") +
                     "\n" + Track.link(track)
                 val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text)
-                runCatching { context.startActivity(Intent.createChooser(send, "Поделиться")) }
+                runCatching { context.startActivity(Intent.createChooser(send, tr("Поделиться"))) }
                 onDismiss()
             }
 
             HorizontalDivider(Modifier.padding(vertical = 6.dp))
-            Text("В плейлисты", style = MaterialTheme.typography.labelLarge,
+            Text(tr("В плейлисты"), style = MaterialTheme.typography.labelLarge,
                 modifier = Modifier.padding(top = 4.dp, bottom = 4.dp))
             for (name in names) {
                 val present = name in inLists
@@ -178,15 +178,15 @@ fun TrackMenu(
                     Text(name, color = if (present) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
                 }
             }
-            Item(Icons.Default.Add, "Новый плейлист") { creating = true }
+            Item(Icons.Default.Add, tr("Новый плейлист")) { creating = true }
             Spacer(Modifier.size(12.dp))
         }
     }
 
     if (creating) {
         NameDialog(
-            title = "Новый плейлист",
-            confirm = "Создать",
+            title = tr("Новый плейлист"),
+            confirm = tr("Создать"),
             onDismiss = { creating = false },
             onConfirm = { name ->
                 // Создаём и сразу кладём трек: окно открывали ради него
@@ -195,14 +195,14 @@ fun TrackMenu(
                 creating = false
                 revision++
                 onChanged()
-                Plaques.toast("«${track.title}» — в новом плейлисте «${name.trim()}»")
+                Plaques.toast(tr("«{название трека}» — в новом плейлисте «{название}»", "название трека" to track.title, "название" to name.trim()))
             }
         )
     }
     if (renaming) {
         NameDialog(
-            title = "Своё название",
-            confirm = "Сохранить",
+            title = tr("Своё название"),
+            confirm = tr("Сохранить"),
             initial = Settings.trackName(track.id) ?: track.title,
             onDismiss = { renaming = false },
             onConfirm = { name ->

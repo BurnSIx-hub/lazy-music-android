@@ -88,11 +88,11 @@ object RadioJob {
         job = scope.launch {
             try {
                 phase = Phase.NEAR
-                note = "собираю радио…"
+                note = tr("собираю радио…")
 
                 // Дизлайкнутое — вон, похожее на него — реже
                 val near = Taste.screen(Radio.near(seed), seed.artist, Taste.MIN_AHEAD)
-                if (near.isEmpty()) return@launch finish("YouTube не смог сформировать радио на основе этого трека")
+                if (near.isEmpty()) return@launch finish(tr("YouTube не смог сформировать радио на основе этого трека"))
 
                 val queue = Radio.mix(head = seed, lanes = listOf(near))
                 val started = withPlayer(app) { player ->
@@ -103,29 +103,29 @@ object RadioJob {
                     player.play()
                     true
                 }
-                if (started != true) return@launch finish("не достучался до плеера")
+                if (started != true) return@launch finish(tr("не достучался до плеера"))
                 seedArtist = seed.artist
 
-                if (!Settings.wideRadio) return@launch finish("радио: ${trackCount(queue.size)}")
+                if (!Settings.wideRadio) return@launch finish(tr("радио: {N треков}", "N треков" to trackCount(queue.size)))
 
                 phase = Phase.WIDE
-                note = "радио: ${trackCount(queue.size)}, подбираю похожих…"
+                note = tr("радио: {N треков}, подбираю похожих…", "N треков" to trackCount(queue.size))
 
                 val extra = runCatching { Taste.screen(Radio.wider(seed, near), seed.artist) }
                     .onFailure { Log.w(TAG, "радио не расширилось", it) }
                     .getOrDefault(emptyList())
-                if (extra.isEmpty()) return@launch finish("радио: ${trackCount(queue.size)}")
+                if (extra.isEmpty()) return@launch finish(tr("радио: {N треков}", "N треков" to trackCount(queue.size)))
 
                 val applied = widen(app, near, extra, queue.mapTo(HashSet()) { it.id })
                 finish(
-                    if (applied) "радио пополнено: ещё ${extra.size} от других исполнителей"
-                    else "радио: ${trackCount(queue.size)}"
+                    if (applied) tr("радио пополнено: ещё {число} от других исполнителей", "число" to extra.size)
+                    else tr("радио: {N треков}", "N треков" to trackCount(queue.size))
                 )
             } catch (cancel: CancellationException) {
                 throw cancel
             } catch (t: Throwable) {
                 Log.w(TAG, "радио не собралось", t)
-                finish(t.message ?: "радио не собралось")
+                finish(t.message ?: tr("радио не собралось"))
             }
         }
     }

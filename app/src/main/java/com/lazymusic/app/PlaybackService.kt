@@ -155,7 +155,7 @@ class PlaybackService : MediaSessionService() {
         return CommandButton.Builder(
             if (liked) CommandButton.ICON_THUMB_UP_FILLED else CommandButton.ICON_THUMB_UP_UNFILLED
         )
-            .setDisplayName(if (liked) "Убрать из понравившегося" else "Нравится")
+            .setDisplayName(if (liked) tr("Убрать из понравившегося") else tr("Нравится"))
             .setSessionCommand(likeCommand)
             .build()
     }

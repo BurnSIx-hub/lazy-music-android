@@ -110,11 +110,11 @@ object YtLogin {
         main.post {
             lateinit var p: Plaque
             p = Plaques.notice(
-                "Авторизуйтесь в YouTube, чтобы он убедился, что вы не бот",
-                "Войдите в YouTube — это минимизирует шанс этой ошибки",
+                tr("Авторизуйтесь в YouTube, чтобы он убедился, что вы не бот"),
+                tr("Войдите в YouTube — это минимизирует шанс этой ошибки"),
                 listOf(
-                    Plaque.Action("Закрыть", quiet = true) { p.close() },
-                    Plaque.Action("Войти") {
+                    Plaque.Action(tr("Закрыть"), quiet = true) { p.close() },
+                    Plaque.Action(tr("Войти")) {
                         p.close()
                         app.startActivity(
                             Intent(app, YtMusicActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)

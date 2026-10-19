@@ -196,7 +196,7 @@ object Engine {
     /** Блокирует до готовности движка. Бросает, если развернуть не удалось. */
     fun awaitReady() {
         latch.await()
-        failure?.let { throw IOException("движок не поднялся: ${it.message}", it) }
+        failure?.let { throw IOException(tr("движок не поднялся: {причина}", "причина" to it.message), it) }
     }
 
     /**
@@ -218,11 +218,11 @@ object Engine {
         object Busy : Outcome()
 
         fun describe(): String = when (this) {
-            is Updated -> "обновлён: ${from ?: "встроенный"} → $to"
-            is Current -> "уже свежий (${version ?: "встроенный"})"
-            is Rejected -> "сборка $tag не запустилась, оставлен прежний"
-            is Failed -> "проверить не вышло — $why"
-            Busy -> "обновление уже идёт"
+            is Updated -> tr("обновлён: {было} → {стало}", "было" to (from ?: tr("встроенный")), "стало" to to)
+            is Current -> tr("уже свежий ({версия})", "версия" to (version ?: tr("встроенный")))
+            is Rejected -> tr("сборка {выпуск} не запустилась, оставлен прежний", "выпуск" to tag)
+            is Failed -> tr("проверить не вышло — {причина}", "причина" to why)
+            Busy -> tr("обновление уже идёт")
         }
     }
 
@@ -259,7 +259,7 @@ object Engine {
     /** Проверить и, если есть что, обновить. Блокирует на время работы. */
     fun update(context: Context, reason: String): Outcome {
         val app = context.applicationContext
-        if (runCatching { awaitReady() }.isFailure) return Outcome.Failed("движок не поднялся")
+        if (runCatching { awaitReady() }.isFailure) return Outcome.Failed(tr("движок не поднялся"))
         if (!updating.compareAndSet(false, true)) return Outcome.Busy
         try {
             val outcome = runCatching { check(app) }
@@ -275,7 +275,7 @@ object Engine {
         val current = installed(app)
         val release = JSONObject(fetchText(RELEASES))
         val tag = release.optString("tag_name").trim()
-        if (tag.isEmpty()) return Outcome.Failed("GitHub ответил без номера версии")
+        if (tag.isEmpty()) return Outcome.Failed(tr("GitHub ответил без номера версии"))
 
         // До сети дошли и ответ получили — следующая плановая проверка
         // не раньше, чем через положенный срок
@@ -284,7 +284,7 @@ object Engine {
         if (tag == Settings.engineRejected) return Outcome.Rejected(tag)
 
         val link = assetUrl(release)
-            ?: return Outcome.Failed("в выпуске $tag нет файла $ASSET")
+            ?: return Outcome.Failed(tr("в выпуске {выпуск} нет файла {файл}", "выпуск" to tag, "файл" to ASSET))
 
         val dir = File(File(app.noBackupFilesDir, LIB_DIR), "yt-dlp")
         val binary = File(dir, "yt-dlp")

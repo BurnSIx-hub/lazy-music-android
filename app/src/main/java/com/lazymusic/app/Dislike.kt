@@ -16,7 +16,7 @@ object Dislike {
     fun toggle(host: PlayerHost, track: Track) {
         if (track.id in Taste) {
             Taste.remove(track.id)
-            Plaques.toast("Дизлайк снят: трек снова может попасться в радио")
+            Plaques.toast(tr("Дизлайк снят: трек снова может попасться в радио"))
         } else {
             dislike(host, track)
         }
@@ -43,12 +43,12 @@ object Dislike {
         val after = host.queueKey()
 
         val notes = listOfNotNull(
-            "убран из понравившегося".takeIf { likedAt >= 0 },
-            "похожих в радио: −$thinned".takeIf { thinned > 0 }
+            tr("убран из понравившегося").takeIf { likedAt >= 0 },
+            tr("похожих в радио: −{число}", "число" to thinned).takeIf { thinned > 0 }
         )
         Plaques.undoable(
-            text = "Не нравится: «${track.title}»",
-            sub = notes.joinToString(" · ").ifEmpty { "Больше не попадётся в радио и подборке" },
+            text = tr("Не нравится: «{название трека}»", "название трека" to track.title),
+            sub = notes.joinToString(" · ").ifEmpty { tr("Больше не попадётся в радио и подборке") },
             ms = UNDO_MS,
             onUndo = {
                 Taste.remove(track.id)

@@ -23,6 +23,7 @@ import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
+import java.util.Locale
 
 /**
  * Обновление с GitHub — как у Lazy Music на ПК.
@@ -49,6 +50,8 @@ object Update {
         val version: String,
         val code: Long,
         val notes: String,
+        /** То же по-английски; у выпусков до 1.12.0 его нет. */
+        val notesEn: String,
         val url: String,
         val sha256: String,
         val size: Long
@@ -112,6 +115,7 @@ object Update {
                     version = json.optString("version"),
                     code = json.optLong("versionCode"),
                     notes = json.optString("notes"),
+                    notesEn = json.optString("notes_en"),
                     url = json.optString("url"),
                     sha256 = json.optString("sha256").lowercase(),
                     size = json.optLong("size")
@@ -124,7 +128,7 @@ object Update {
                     offer(activity)
                 } else {
                     found = null
-                    if (!quiet) Plaques.toast("Стоит последняя версия — $current")
+                    if (!quiet) Plaques.toast(tr("Стоит последняя версия — {ваша версия}", "ваша версия" to current))
                 }
             } catch (t: Throwable) {
                 error = t.message ?: t::class.simpleName
@@ -141,16 +145,16 @@ object Update {
     private fun offer(activity: Activity) {
         val f = found ?: return
         if (snoozed == f.version || installing) return
-        val sub = firstLine(f.notes).ifEmpty { "У вас $current" }
+        val sub = firstLine(if (Lang.english && f.notesEn.isNotBlank()) f.notesEn else f.notes).ifEmpty { tr("У вас {ваша версия}", "ваша версия" to current) }
         val actions = listOf(
-            Plaque.Action("Позже", quiet = true) { snoozed = f.version; drop() },
-            Plaque.Action("Обновить") { install(activity) }
+            Plaque.Action(tr("Позже"), quiet = true) { snoozed = f.version; drop() },
+            Plaque.Action(tr("Обновить")) { install(activity) }
         )
         val p = plaque
         if (p != null && p in Plaques.items) {
-            p.text = "Новая версия Lazy Music ${f.version}"; p.sub = sub; p.actions = actions; p.progress = null
+            p.text = tr("Новая версия Lazy Music {версия}", "версия" to f.version); p.sub = sub; p.actions = actions; p.progress = null
         } else {
-            plaque = Plaques.notice("Новая версия Lazy Music ${f.version}", sub, actions)
+            plaque = Plaques.notice(tr("Новая версия Lazy Music {версия}", "версия" to f.version), sub, actions)
         }
     }
 
@@ -159,7 +163,9 @@ object Update {
         plaque = null
     }
 
-    private fun mb(n: Long) = String.format("%.1f МБ", n / 1048576.0).replace('.', ',')
+    private fun mb(n: Long) =
+        if (Lang.english) String.format(Locale.US, "%.1f MB", n / 1048576.0)
+        else String.format("%.1f МБ", n / 1048576.0).replace('.', ',')
 
     /** Скачать, сверить и отдать системе на установку. */
     fun install(activity: Activity) {
@@ -169,12 +175,12 @@ object Update {
         // Без разрешения система не даст поставить — просим и ждём возвращения
         if (!activity.packageManager.canRequestPackageInstalls()) {
             waitingPermission = true
-            p.text = "Разрешите Lazy Music устанавливать приложения"
-            p.sub = "Один раз: так приложение сможет обновляться само"
+            p.text = tr("Разрешите Lazy Music устанавливать приложения")
+            p.sub = tr("Один раз: так приложение сможет обновляться само")
             p.progress = null
             p.actions = listOf(
-                Plaque.Action("Позже", quiet = true) { waitingPermission = false; drop() },
-                Plaque.Action("Разрешить") {
+                Plaque.Action(tr("Позже"), quiet = true) { waitingPermission = false; drop() },
+                Plaque.Action(tr("Разрешить")) {
                     runCatching {
                         activity.startActivity(
                             Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
@@ -186,7 +192,7 @@ object Update {
             return
         }
         installing = true
-        p.text = "Загрузка Lazy Music ${f.version}…"
+        p.text = tr("Загрузка Lazy Music {версия}…", "версия" to f.version)
         p.sub = ""
         p.actions = emptyList()
         p.progress = 0f
@@ -197,23 +203,23 @@ object Update {
                     download(f, File(app.cacheDir, "update.apk")) { got, total ->
                         scope.launch {
                             p.progress = if (total > 0) got.toFloat() / total else 0f
-                            p.sub = if (total > 0) "${mb(got)} из ${mb(total)}" else mb(got)
+                            p.sub = if (total > 0) tr("{скачано} из {всего}", "скачано" to mb(got), "всего" to mb(total)) else mb(got)
                         }
                     }
                 }
-                p.text = "Установка обновления"
+                p.text = tr("Установка обновления")
                 p.sub = ""
                 p.progress = 1f
                 withContext(Dispatchers.IO) { commit(app, apk) }
             } catch (t: Throwable) {
                 installing = false
                 Diag.w("обновление не удалось: ${Diag.chain(t)}")
-                p.text = "Обновление не удалось"
+                p.text = tr("Обновление не удалось")
                 p.sub = t.message ?: t::class.simpleName.orEmpty()
                 p.progress = null
                 p.actions = listOf(
-                    Plaque.Action("Закрыть", quiet = true) { drop() },
-                    Plaque.Action("Ещё раз") { install(activity) }
+                    Plaque.Action(tr("Закрыть"), quiet = true) { drop() },
+                    Plaque.Action(tr("Ещё раз")) { install(activity) }
                 )
             }
         }
@@ -223,10 +229,10 @@ object Update {
     internal fun failed(message: String) {
         installing = false
         val p = plaque ?: return
-        p.text = "Обновление не удалось"
+        p.text = tr("Обновление не удалось")
         p.sub = message
         p.progress = null
-        p.actions = listOf(Plaque.Action("Закрыть", quiet = true) { drop() })
+        p.actions = listOf(Plaque.Action(tr("Закрыть"), quiet = true) { drop() })
     }
 
     private fun download(f: Found, to: File, progress: (Long, Long) -> Unit): File {
@@ -315,7 +321,7 @@ class InstallReceiver : BroadcastReceiver() {
             }
             PackageInstaller.STATUS_SUCCESS -> Unit
             else -> {
-                val why = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE) ?: "установка отменена"
+                val why = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE) ?: tr("установка отменена")
                 Diag.w("установщик: $why")
                 Update.failed(why)
             }

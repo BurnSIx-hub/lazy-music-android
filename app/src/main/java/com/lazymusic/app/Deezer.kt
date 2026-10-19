@@ -230,9 +230,9 @@ object Deezer {
             val code = conn.responseCode
             val body = (if (code in 200..299) conn.inputStream else conn.errorStream)
                 ?.bufferedReader()?.use { it.readText() }.orEmpty()
-            if (code !in 200..299) throw IOException("Deezer ответил $code")
+            if (code !in 200..299) throw IOException(tr("Deezer ответил {код ответа}", "код ответа" to code))
             val json = runCatching { JSONObject(body.ifBlank { "{}" }) }
-                .getOrElse { throw IOException("Deezer ответил не разбираемым текстом") }
+                .getOrElse { throw IOException(tr("Deezer ответил не разбираемым текстом")) }
             json.optJSONObject("error")?.let { err ->
                 throw IOException(err.optString("message").ifBlank { "Deezer отказал" })
             }

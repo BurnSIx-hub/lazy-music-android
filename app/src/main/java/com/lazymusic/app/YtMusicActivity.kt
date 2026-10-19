@@ -154,14 +154,14 @@ class YtMusicActivity : ComponentActivity() {
                             title = { Text("YouTube Music") },
                             navigationIcon = {
                                 IconButton(onClick = ::finish) {
-                                    Icon(Icons.Default.ArrowBack, contentDescription = "Закрыть")
+                                    Icon(Icons.Default.ArrowBack, contentDescription = tr("Закрыть"))
                                 }
                             },
                             actions = {
                                 // «Выйти» без уточнения читалось как «закрыть экран»;
                                 // а пока входа нет, и стирать нечего
                                 if (signedIn) {
-                                    TextButton(onClick = ::signOut) { Text("Выйти из аккаунта") }
+                                    TextButton(onClick = ::signOut) { Text(tr("Выйти из аккаунта")) }
                                 }
                             }
                         )
@@ -374,17 +374,17 @@ class YtMusicActivity : ComponentActivity() {
                 // 3. Кладём в понравившееся
                 val added = Likes.addAll(tracks)
                 note = when {
-                    tracks.isEmpty() -> "В списке не нашлось ни одного трека."
-                    added == 0 -> "Новых нет: все ${tracks.size} уже были в приложении."
-                    else -> "Добавлено новых: $added. Всего в списке на странице ${tracks.size}."
-                } + if (gone > 0) " Недоступных роликов пропущено: $gone." else ""
+                    tracks.isEmpty() -> tr("В списке не нашлось ни одного трека.")
+                    added == 0 -> tr("Новых нет: все {число} уже были в приложении.", "число" to tracks.size)
+                    else -> tr("Добавлено новых: {новых}. Всего в списке на странице {число}.", "новых" to added, "число" to tracks.size)
+                } + if (gone > 0) tr(" Недоступных роликов пропущено: {пропущено}.", "пропущено" to gone) else ""
                 Diag.i("YouTube Music: строк ${last.coerceAtLeast(0)}, годных ${tracks.size}, новых $added, пропущено $gone")
                 stage = Stage.DONE
             } catch (cancel: CancellationException) {
                 stage = Stage.READY
                 throw cancel
             } catch (t: Throwable) {
-                note = "Не вышло: ${t.message ?: t.javaClass.simpleName}"
+                note = tr("Не вышло: {причина}", "причина" to (t.message ?: t.javaClass.simpleName))
                 Diag.w("YouTube Music: сбор сорвался — ${Diag.chain(t, 200)}")
                 stage = Stage.FAILED
             } finally {
@@ -501,16 +501,16 @@ class YtMusicActivity : ComponentActivity() {
             Column(Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
                 Text(
                     text = when (stage) {
-                        Stage.OPENING -> "Открываю список понравившегося…"
-                        Stage.ON_THE_WAY -> "Ответь на то, что спрашивает страница ниже — вход в аккаунт, " +
-                            "согласие. Пароль вводится на странице Google: приложение его не читает " +
-                            "и не хранит. После входа список откроется сам."
-                        Stage.SIGNED_OUT -> "Список не показывается — похоже, ты не вошёл в аккаунт. " +
-                            "Нажми «Войти»: откроется обычная страница входа Google."
-                        Stage.ELSEWHERE -> "Это не список понравившегося."
-                        Stage.READY -> "Список открыт. Нажми «Забрать» — приложение само прокрутит " +
-                            "его до конца и добавит то, чего у него ещё нет."
-                        Stage.WORKING -> "Собираю… строк уже: $seen. Экран не гаси и окно не сворачивай."
+                        Stage.OPENING -> tr("Открываю список понравившегося…")
+                        Stage.ON_THE_WAY -> tr("Ответь на то, что спрашивает страница ниже — вход в аккаунт, " +
+                            "согласие. Пароль вводится на странице Google: приложение его " +
+                            "не читает и не хранит. После входа список откроется сам.")
+                        Stage.SIGNED_OUT -> tr("Список не показывается — похоже, ты не вошёл в аккаунт. Нажми " +
+                            "«Войти»: откроется обычная страница входа Google.")
+                        Stage.ELSEWHERE -> tr("Это не список понравившегося.")
+                        Stage.READY -> tr("Список открыт. Нажми «Забрать» — приложение само прокрутит " +
+                            "его до конца и добавит то, чего у него ещё нет.")
+                        Stage.WORKING -> tr("Собираю… строк уже: {число}. Экран не гаси и окно не сворачивай.", "число" to seen)
                         Stage.DONE, Stage.FAILED -> note
                     },
                     style = MaterialTheme.typography.bodyMedium
@@ -519,8 +519,8 @@ class YtMusicActivity : ComponentActivity() {
                     // Вход остаётся в этом окне — об этом надо сказать прямо,
                     // а не оставлять молча
                     Text(
-                        text = "Вход в аккаунт сохранён в этом окне: в следующий раз входить " +
-                            "не придётся. Не нужен — «Выйти из аккаунта» сверху сотрёт его.",
+                        text = tr("Вход в аккаунт сохранён в этом окне: в следующий раз входить " +
+                            "не придётся. Не нужен — «Выйти из аккаунта» сверху сотрёт его."),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 6.dp)
@@ -533,16 +533,16 @@ class YtMusicActivity : ComponentActivity() {
                     when (stage) {
                         Stage.OPENING -> CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
                         Stage.ON_THE_WAY -> Unit
-                        Stage.SIGNED_OUT -> Button(onClick = { open(SIGN_IN_URL) }) { Text("Войти") }
-                        Stage.ELSEWHERE -> Button(onClick = { open(listUrl) }) { Text("Открыть понравившееся") }
-                        Stage.READY -> Button(onClick = ::collect) { Text("Забрать") }
+                        Stage.SIGNED_OUT -> Button(onClick = { open(SIGN_IN_URL) }) { Text(tr("Войти")) }
+                        Stage.ELSEWHERE -> Button(onClick = { open(listUrl) }) { Text(tr("Открыть понравившееся")) }
+                        Stage.READY -> Button(onClick = ::collect) { Text(tr("Забрать")) }
                         Stage.WORKING -> {
                             CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
                             Spacer(Modifier.width(12.dp))
-                            OutlinedButton(onClick = { work?.cancel() }) { Text("Остановить") }
+                            OutlinedButton(onClick = { work?.cancel() }) { Text(tr("Остановить")) }
                         }
-                        Stage.DONE -> Button(onClick = ::finish) { Text("Готово") }
-                        Stage.FAILED -> Button(onClick = ::collect) { Text("Ещё раз") }
+                        Stage.DONE -> Button(onClick = ::finish) { Text(tr("Готово")) }
+                        Stage.FAILED -> Button(onClick = ::collect) { Text(tr("Ещё раз")) }
                     }
                 }
             }

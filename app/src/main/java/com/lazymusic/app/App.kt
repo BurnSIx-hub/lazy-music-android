@@ -14,6 +14,7 @@ class App : Application() {
         instance = this
         Settings.attach(this)
         Diag.attach(this)
+        Lang.attach(this)
         // Версию берём у системы: BuildConfig в AGP 9 по умолчанию не создаётся
         val release = runCatching { packageManager.getPackageInfo(packageName, 0).versionName }
             .getOrNull() ?: "?"

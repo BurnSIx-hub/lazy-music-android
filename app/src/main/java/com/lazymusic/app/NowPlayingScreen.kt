@@ -76,7 +76,7 @@ fun NowPlayingScreen(
 ) {
     val track = host.current
     if (track == null) {
-        EmptyHint("Ничего не играет.\nНайдите трек в поиске или откройте свой плейлист.")
+        EmptyHint(tr("Ничего не играет.\nНайдите трек в поиске или откройте свой плейлист."))
         return
     }
 
@@ -175,13 +175,13 @@ fun NowPlayingScreen(
                 IconButton(onClick = host::toggleShuffle) {
                     Icon(
                         Icons.Default.Shuffle,
-                        contentDescription = "Вперемешку",
+                        contentDescription = tr("Вперемешку"),
                         tint = if (host.shuffle) MaterialTheme.colorScheme.primary
                         else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 IconButton(onClick = host::previous) {
-                    Icon(Icons.Default.SkipPrevious, contentDescription = "Назад",
+                    Icon(Icons.Default.SkipPrevious, contentDescription = tr("Назад"),
                         modifier = Modifier.size(34.dp))
                 }
                 FilledIconButton(
@@ -190,19 +190,19 @@ fun NowPlayingScreen(
                 ) {
                     Icon(
                         if (host.playing) Icons.Default.Pause else Icons.Default.PlayArrow,
-                        contentDescription = if (host.playing) "Пауза" else "Играть",
+                        contentDescription = if (host.playing) tr("Пауза") else tr("Играть"),
                         modifier = Modifier.size(32.dp)
                     )
                 }
                 IconButton(onClick = host::next) {
-                    Icon(Icons.Default.SkipNext, contentDescription = "Вперёд",
+                    Icon(Icons.Default.SkipNext, contentDescription = tr("Вперёд"),
                         modifier = Modifier.size(34.dp))
                 }
                 IconButton(onClick = host::cycleRepeat) {
                     Icon(
                         if (host.repeatMode == Player.REPEAT_MODE_ONE) Icons.Default.RepeatOne
                         else Icons.Default.Repeat,
-                        contentDescription = "Повтор",
+                        contentDescription = tr("Повтор"),
                         tint = if (host.repeatMode == Player.REPEAT_MODE_OFF)
                             MaterialTheme.colorScheme.onSurfaceVariant
                         else MaterialTheme.colorScheme.primary
@@ -226,9 +226,9 @@ fun NowPlayingScreen(
                     label = {
                         Text(
                             when {
-                                gathering -> "Собираю…"
-                                widening -> "Ищу похожих…"
-                                else -> "Радио"
+                                gathering -> tr("Собираю…")
+                                widening -> tr("Ищу похожих…")
+                                else -> tr("Радио")
                             }
                         )
                     },
@@ -257,8 +257,8 @@ fun NowPlayingScreen(
                         Text(
                             when {
                                 downloading != null -> "${(downloading * 100).toInt()}%"
-                                cached -> "Скачан"
-                                else -> "Скачать"
+                                cached -> tr("Скачан")
+                                else -> tr("Скачать")
                             }
                         )
                     },
@@ -283,7 +283,7 @@ fun NowPlayingScreen(
 
                 AssistChip(
                     onClick = { onAddToPlaylist(track) },
-                    label = { Text("В плейлист") },
+                    label = { Text(tr("В плейлист")) },
                     leadingIcon = { Icon(Icons.Default.PlaylistAdd, contentDescription = null) }
                 )
             }
@@ -291,7 +291,7 @@ fun NowPlayingScreen(
             if (host.queue.size > 1) {
                 Spacer(Modifier.height(20.dp))
                 Text(
-                    text = "Дальше в очереди",
+                    text = tr("Дальше в очереди"),
                     style = MaterialTheme.typography.titleSmall,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
                 )

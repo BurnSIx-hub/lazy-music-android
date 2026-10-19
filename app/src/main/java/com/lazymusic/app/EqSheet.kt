@@ -88,9 +88,9 @@ fun EqSheet(host: PlayerHost, onDismiss: () -> Unit) {
                 ) { Icon(LazyEqIcon, contentDescription = null, tint = Red, modifier = Modifier.size(28.dp)) }
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
-                    Text("Эквалайзер", style = MaterialTheme.typography.titleLarge)
+                    Text(tr("Эквалайзер"), style = MaterialTheme.typography.titleLarge)
                     Text(
-                        "Двойной щелчок по ползунку — в ноль",
+                        tr("Двойной щелчок по ползунку — в ноль"),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 2
@@ -99,9 +99,9 @@ fun EqSheet(host: PlayerHost, onDismiss: () -> Unit) {
                 Switch(
                     checked = Eq.on,
                     onCheckedChange = { Eq.switch(it) },
-                    modifier = Modifier.semantics { contentDescription = "Включить эквалайзер" }
+                    modifier = Modifier.semantics { contentDescription = tr("Включить эквалайзер") }
                 )
-                IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, contentDescription = "Закрыть") }
+                IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, contentDescription = tr("Закрыть")) }
             }
 
             Spacer(Modifier.height(12.dp))
@@ -118,7 +118,7 @@ fun EqSheet(host: PlayerHost, onDismiss: () -> Unit) {
                     FilterChip(
                         selected = Eq.on && Eq.preset == p.key,
                         onClick = { Eq.choose(p.key) },
-                        label = { Text(p.name) }
+                        label = { Text(tr(p.name)) }
                     )
                 }
             }
@@ -132,10 +132,10 @@ fun EqSheet(host: PlayerHost, onDismiss: () -> Unit) {
             ) {
                 Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("Скачать изменённый трек")
+                Text(tr("Скачать изменённый трек"))
             }
             Text(
-                "В M4A, с эквалайзером, если он включён. Папка «Музыка/Lazy Music».",
+                tr("В M4A, с эквалайзером, если он включён. Папка «Музыка/Lazy Music»."),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 6.dp, bottom = 16.dp)
@@ -224,6 +224,6 @@ private fun Band(i: Int) {
             drawCircle(thumb, 7.dp.toPx(), Offset(cx, y.coerceIn(7.dp.toPx(), size.height - 7.dp.toPx())))
         }
         Spacer(Modifier.height(6.dp))
-        Text(Eq.LABELS[i], fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
+        Text(tr(Eq.LABELS[i]), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
     }
 }

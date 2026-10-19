@@ -348,7 +348,7 @@ object Radio {
             val response = try {
                 Engine.extracting { YoutubeDL.getInstance().execute(request) }
             } catch (t: Throwable) {
-                throw IOException("yt-dlp не отдал ленту: ${t.message}", t)
+                throw IOException(tr("yt-dlp не отдал ленту: {причина}", "причина" to t.message), t)
             }
             // Ненулевой код — это `--ignore-errors` проглотил чью-то беду.
             // Без этой строки было бы видно только, что находок меньше,
@@ -358,7 +358,7 @@ object Radio {
             }
             val rows = parse(response.out)
             if (strict && rows.isEmpty() && response.exitCode != 0) {
-                throw IOException("YouTube не ответил: ${response.err.trim().lineSequence().lastOrNull().orEmpty().take(200)}")
+                throw IOException(tr("YouTube не ответил: {причина}", "причина" to (response.err.trim().lineSequence().lastOrNull().orEmpty().take(200))))
             }
             rows
         }

@@ -162,12 +162,12 @@ object Hub {
         val (status, json) = try {
             call("POST", "http://${pc.address}/pair", body, null, TIMEOUT_MS)
         } catch (e: IOException) {
-            return@withContext "Компьютер не отвечает: ${e.message}"
+            return@withContext tr("Компьютер не отвечает: {причина}", "причина" to e.message)
         }
         when (status) {
             200 -> {
                 val token = json?.optString("token").orEmpty()
-                if (token.length < 16) return@withContext "Компьютер ответил странно"
+                if (token.length < 16) return@withContext tr("Компьютер ответил странно")
                 Settings.hubAddress = pc.address
                 Settings.hubId = json?.optString("id").orEmpty().ifBlank { pc.id }
                 Settings.hubName = json?.optString("name").orEmpty().ifBlank { pc.name }
@@ -179,11 +179,11 @@ object Hub {
                 soon(0, "сопряжение")
                 null
             }
-            403 -> "Код не тот — сверьте с экраном компьютера"
-            409 -> "На компьютере не открыто сопряжение — нажмите там «Сопрячь телефон»"
-            410 -> "Код устарел — возьмите на компьютере новый"
-            429 -> "Слишком много неверных попыток — начните сопряжение на компьютере заново"
-            else -> "Компьютер ответил $status"
+            403 -> tr("Код не тот — сверьте с экраном компьютера")
+            409 -> tr("На компьютере не открыто сопряжение — нажмите там «Сопрячь телефон»")
+            410 -> tr("Код устарел — возьмите на компьютере новый")
+            429 -> tr("Слишком много неверных попыток — начните сопряжение на компьютере заново")
+            else -> tr("Компьютер ответил {код ответа}", "код ответа" to status)
         }
     }
 
@@ -213,7 +213,7 @@ object Hub {
                     .put("applied", Settings.hubApplied)
                     .put("library", Settings.libraryForSync())
                 val (status, json) = post(body) ?: run {
-                    if (reason == MANUAL) note = "Компьютер не отвечает — он включён и в той же сети Wi-Fi?"
+                    if (reason == MANUAL) note = tr("Компьютер не отвечает — он включён и в той же сети Wi-Fi?")
                     return false
                 }
                 when (status) {
@@ -241,12 +241,12 @@ object Hub {
                     403 -> {
                         Settings.hubToken = ""
                         paired = false
-                        note = "Компьютер не узнал этот телефон — сопрягите заново"
+                        note = tr("Компьютер не узнал этот телефон — сопрягите заново")
                         Diag.w("сводка: компьютер отказал в ключе")
                         return false
                     }
                     else -> {
-                        note = "Компьютер ответил $status"
+                        note = tr("Компьютер ответил {код ответа}", "код ответа" to status)
                         return false
                     }
                 }
@@ -302,7 +302,7 @@ object Hub {
                 ?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
             val json = runCatching { JSONObject(text) }.getOrNull()
             if (code == 200 && json != null && json.optInt("version", WIRE) > WIRE) {
-                throw IOException("приложение на компьютере новее — обновите и это")
+                throw IOException(tr("приложение на компьютере новее — обновите и это"))
             }
             return code to json
         } finally {

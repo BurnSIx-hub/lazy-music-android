@@ -9,6 +9,13 @@
 #   python kt_texts.py export --out ФАЙЛ.md --approved ПК-сейчас.json
 #                                                 выгрузить то, чего на ПК нет
 #   python kt_texts.py import ФАЙЛ.md             вернуть переписанное в код
+#   python kt_texts.py check [--prune]            всё ли переведено на английский
+#   python kt_texts.py en ПЕРЕВОД.json            дописать английский ({русский: английский})
+#
+# Перевод (с 1.12.0): надпись в коде — tr("Русский текст {имя}", "имя" to x),
+# русский текст — ключ, английский лежит в assets/i18n/en.json. Переписали
+# русский — import переносит английский на новый ключ и отмечает его в
+# en_stale.json: английский надо перевести заново (check это покажет).
 #
 # texts.json (рядом) хранит для каждого номера места в коде и исходные
 # литералы: строки сдвигаются с каждой правкой, номера строк — только для
@@ -147,7 +154,8 @@ FRIENDLY = {
     'tag': 'выпуск', 'ASSET': 'файл',
 }
 # Файлы, где строки — только для журнала
-SKIP_FILES = {'Recovery.kt', 'StreamUrls.kt', 'Ipv4First.kt', 'Prefetch.kt', 'Diag.kt', 'YtDataSource.kt'}
+SKIP_FILES = {'Recovery.kt', 'StreamUrls.kt', 'Ipv4First.kt', 'Prefetch.kt', 'Diag.kt', 'YtDataSource.kt',
+              'NetTrace.kt', 'Suggest.kt'}
 
 
 def friendly(expr):
@@ -178,6 +186,10 @@ SKIP_TEXT = {
     'после отказа', 'вручную',
     # имя сохранённого файла
     '{artist} — {название трека}', ' (эквалайзер)', 'трек',
+    # данные, а не надписи: союз в именах исполнителей, хвосты названий при сверке импорта
+    ' и ', 'ремастер', 'версия', '{tracks.count { it.id in have }} из {число}',
+    # название языка — на нём самом, не переводится
+    'Русский',
 }
 NOISE = ('Log.', 'Diag.', 'throw ', 'IOException(', 'TrackUnavailable(', 'require(', 'check(',
          'Regex(', 'Diag.chain', 'diag', 'SimpleDateFormat', 'String.format', 'Locale(')
@@ -244,6 +256,61 @@ def describe(src, start):
     return 'надпись'
 
 
+# ── Перевод ──────────────────────────────────────────────────────────────────
+
+EN_JSON = os.path.normpath(os.path.join(HERE, '..', '..', 'app', 'src', 'main', 'assets', 'i18n', 'en.json'))
+STALE_JSON = os.path.join(HERE, 'en_stale.json')
+WRAP = re.compile(r'\btr(Key)?\(\s*$')
+# Ключи, которые переводятся через переменную: tr(Likes.LIST)
+DYNAMIC = {'Понравившаяся музыка'}
+
+
+def wrapped(src, start):
+    """Литерал — ключ перевода: стоит сразу за tr( или trKey(."""
+    return WRAP.search(src[max(0, start - 40):start]) is not None
+
+
+def arg_name(src, end):
+    """Имя подстановки рядом с ключом: "число" to n."""
+    return re.match(r'\s+to\b', src[end:end + 8]) is not None
+
+
+def load_json(path):
+    return json.load(io.open(path, encoding='utf-8')) if os.path.isfile(path) else {}
+
+
+def save_json(path, data):
+    io.open(path, 'w', encoding='utf-8', newline='\n').write(
+        json.dumps(dict(sorted(data.items())), ensure_ascii=False, indent=1) + '\n')
+
+
+def tr_keys():
+    """Все ключи tr()/trKey() во всех файлах → места."""
+    keys = {}
+    for f in sorted(os.listdir(SRC)):
+        if not f.endswith('.kt'):
+            continue
+        src = io.open(os.path.join(SRC, f), encoding='utf-8').read()
+        for start, end, parts, raw in literals(src):
+            if wrapped(src, start):
+                body = ''.join(parts)
+                keys.setdefault(unescape(body), []).append((f, src.count('\n', 0, start) + 1, body))
+    return keys
+
+
+def en_rename(pairs):
+    """Русский переписан: английский — на новый ключ, и отметка «перевести заново»."""
+    en, stale = load_json(EN_JSON), load_json(STALE_JSON)
+    for old, new in pairs:
+        if old == new:
+            continue
+        if old in en and new not in en:
+            en[new] = en[old]
+        stale[new] = old
+    save_json(EN_JSON, en)
+    save_json(STALE_JSON, stale)
+
+
 def scan():
     items = []
     for f in sorted(os.listdir(SRC)):
@@ -253,7 +320,7 @@ def scan():
         for start, end, parts, raw in literals(src):
             text, subs = text_of(parts)
             # Русское только в именах подстановок — не надпись («{число} {form}»)
-            if not CYR.search(PLACE.sub('', text)) or skip(f, src, start, text):
+            if not CYR.search(PLACE.sub('', text)) or skip(f, src, start, text) or arg_name(src, end):
                 continue
             items.append({
                 'file': f,
@@ -264,6 +331,7 @@ def scan():
                 'subs': [[friendly(e), w] for e, w in subs],
                 'multiline': '\n' in src[start:end],
                 'where': describe(src, start),
+                'wrapped': wrapped(src, start),
             })
     return items
 
@@ -275,8 +343,9 @@ def norm(text):
 # ── Запись литерала ──────────────────────────────────────────────────────────
 
 
-def kt_literal(text, subs, indent, width=96):
-    """Текст с {именами} → литерал Kotlin; длинный — склейкой по словам."""
+def kt_literal(text, subs, indent, width=96, keep=False):
+    """Текст с {именами} → литерал Kotlin; длинный — склейкой по словам.
+    keep — ключ tr(): {имена} остаются в тексте как есть."""
     by_name = {}
     for name, whole in subs:
         by_name.setdefault(name, whole)
@@ -286,7 +355,7 @@ def kt_literal(text, subs, indent, width=96):
         if PLACE.fullmatch(p) and p[1:-1] in by_name:
             body += by_name[p[1:-1]]
         else:
-            if PLACE.fullmatch(p):
+            if PLACE.fullmatch(p) and not keep:
                 raise ValueError(f'неизвестная подстановка {p} в «{text}»')
             body += p.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n').replace('$', '\\$')
     if len(body) + indent < width:
@@ -320,7 +389,7 @@ def replace_texts(changes):
     by_file = {}
     for item, new in changes:
         by_file.setdefault(item['file'], []).append((item, new))
-    problems = []
+    problems, renamed = [], []
     for f, lst in by_file.items():
         p = os.path.join(SRC, f)
         src = io.open(p, encoding='utf-8').read()
@@ -331,9 +400,13 @@ def replace_texts(changes):
                 problems.append(f'{f}:{item["line"]}: литерал не найден: {raw[:60]!r}')
                 continue
             pos = src.find(raw)
-            lit = kt_literal(new, item['subs'], continuation_indent(src, pos, raw))
+            keep = wrapped(src, pos)
+            lit = kt_literal(new, item['subs'], continuation_indent(src, pos, raw), keep=keep)
             src = src.replace(raw, lit)
+            if keep:
+                renamed.append((item['text'], new))
         io.open(p, 'w', encoding='utf-8', newline='\n').write(src)
+    en_rename(renamed)
     return problems
 
 # ── Команды ──────────────────────────────────────────────────────────────────
@@ -484,6 +557,49 @@ def cmd_import(doc_md):
     print('изменено мест:', len(changes))
 
 
+def cmd_check(prune=False):
+    """Всё ли переведено: надписи без tr(), ключи без английского, подстановки."""
+    en, stale = load_json(EN_JSON), load_json(STALE_JSON)
+    keys = tr_keys()
+    bare = [it for it in scan() if not it['wrapped']]
+    missing = [k for k in keys if k not in en]
+    places = [k for k in keys if k in en and sorted(PLACE.findall(k)) != sorted(PLACE.findall(en[k]))]
+    templ = [(k, v[0]) for k, v in keys.items() if template_names(v[0][2])]
+    unused = [k for k in en if k not in keys and k not in DYNAMIC]
+    for it in bare:
+        print(f"БЕЗ tr() {it['file']}:{it['line']}: {it['text']!r}")
+    for k, (f, ln, _) in templ:
+        print(f'ШАБЛОН В КЛЮЧЕ {f}:{ln}: {k!r} — значения через "имя" to x')
+    for k in missing:
+        f, ln, _ = keys[k][0]
+        print(f'НЕТ АНГЛИЙСКОГО {f}:{ln}: {k!r}')
+    for k in places:
+        print(f'ПОДСТАНОВКИ НЕ СХОДЯТСЯ: {k!r} → {en[k]!r}')
+    for k, old in stale.items():
+        print(f'ПЕРЕВЕСТИ ЗАНОВО: {k!r} (было «{old}», английский: {en.get(k)!r})')
+    for k in unused:
+        print(('УБРАН ' if prune else 'НЕ НУЖЕН ') + repr(k))
+    if prune and unused:
+        save_json(EN_JSON, {k: v for k, v in en.items() if k not in unused})
+    print(f'ключей: {len(keys)}, без tr(): {len(bare)}, без английского: {len(missing)}, '
+          f'заново: {len(stale)}, лишних: {len(unused)}')
+    return 1 if bare or templ or missing or places or stale else 0
+
+
+def cmd_en(path):
+    """Дописать английский из {русский: английский}; снять отметку «перевести заново»."""
+    add = json.load(io.open(path, encoding='utf-8'))
+    en, stale = load_json(EN_JSON), load_json(STALE_JSON)
+    for k, v in add.items():
+        if sorted(PLACE.findall(k)) != sorted(PLACE.findall(v)):
+            raise SystemExit(f'подстановки не сходятся: {k!r} → {v!r}')
+        en[k] = v
+        stale.pop(k, None)
+    save_json(EN_JSON, en)
+    save_json(STALE_JSON, stale)
+    print('дописано:', len(add))
+
+
 if __name__ == '__main__':
     a = sys.argv[1:]
     if a[0] == 'scan':
@@ -499,3 +615,7 @@ if __name__ == '__main__':
         cmd_export(out, approved, where, before, doc)
     elif a[0] == 'import':
         cmd_import(a[1])
+    elif a[0] == 'check':
+        sys.exit(cmd_check('--prune' in a))
+    elif a[0] == 'en':
+        cmd_en(a[1])

@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -44,12 +45,13 @@ import java.util.Locale
 
 /** «только что», «5 мин назад», «16 октября, 13:04» — как на ПК. */
 fun ago(ms: Long): String {
-    if (ms <= 0) return "ни разу"
+    if (ms <= 0) return tr("ни разу")
     val s = (System.currentTimeMillis() - ms) / 1000
     return when {
-        s < 60 -> "только что"
-        s < 3600 -> "${Math.round(s / 60.0)} мин назад"
-        s < 86_400 -> "${Math.round(s / 3600.0)} ч назад"
+        s < 60 -> tr("только что")
+        s < 3600 -> tr("{минут} мин назад", "минут" to Math.round(s / 60.0))
+        s < 86_400 -> tr("{часов} ч назад", "часов" to Math.round(s / 3600.0))
+        Lang.english -> SimpleDateFormat("MMMM d, HH:mm", Locale.ENGLISH).format(Date(ms))
         else -> SimpleDateFormat("d MMMM, HH:mm", Locale("ru")).format(Date(ms))
     }
 }
@@ -112,16 +114,45 @@ fun SwitchRow(title: String, hint: String?, checked: Boolean, onChange: (Boolean
     }
 }
 
+/**
+ * Язык: как в системе, русский или английский — см. [Lang]. Названия
+ * языков — на самих языках: кто не читает по-русски, найдёт «English».
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun LanguageSection() {
+    var choice by remember { mutableStateOf(Settings.lang) }
+    Section(tr("Язык")) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            for (code in Lang.CHOICES) {
+                FilterChip(
+                    selected = choice == code,
+                    onClick = { choice = code; Lang.choose(code) },
+                    label = {
+                        Text(
+                            when (code) {
+                                "ru" -> "Русский"
+                                "en" -> "English"
+                                else -> tr("Как в системе")
+                            }
+                        )
+                    }
+                )
+            }
+        }
+    }
+}
+
 /** Обновления с GitHub — см. [Update]. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun UpdatesSection(activity: Activity) {
     val f = Update.found
-    Section("Обновления", "Версия ${Update.current}. Новые выпуски приходят с GitHub.") {
+    Section(tr("Обновления"), tr("Версия {версия}. Новые выпуски приходят с GitHub.", "версия" to Update.current)) {
         if (f != null) {
             Card(Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
                 Column(Modifier.padding(12.dp)) {
-                    Text("Доступна ${f.version}", style = MaterialTheme.typography.titleSmall)
+                    Text(tr("Доступна {версия}", "версия" to f.version), style = MaterialTheme.typography.titleSmall)
                     if (f.notes.isNotBlank()) SmallHint(f.notes)
                 }
             }
@@ -129,15 +160,15 @@ fun UpdatesSection(activity: Activity) {
         // Галочка — «не обновлять»: включена, когда проверка выключена
         var off by remember { mutableStateOf(!Settings.checkUpdates) }
         SwitchRow(
-            "Не обновлять автоматически",
-            "Обновления проверяются автоматически. Чтобы установить новую версию, нажмите кнопку «Обновить».",
+            tr("Не обновлять автоматически"),
+            tr("Обновления проверяются автоматически. Чтобы установить новую версию, нажмите кнопку «Обновить»."),
             off
         ) { off = it; Settings.checkUpdates = !it }
         Spacer(Modifier.height(8.dp))
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (f != null) {
                 Button(onClick = { Update.install(activity) }, enabled = !Update.installing) {
-                    Text(if (Update.installing) "Установка новой версии…" else "Обновить до ${f.version}")
+                    Text(if (Update.installing) tr("Установка новой версии…") else tr("Обновить до {версия}", "версия" to f.version))
                 }
             }
             OutlinedButton(onClick = { Update.check(activity, quiet = false) }, enabled = !Update.checking && !Update.installing) {
@@ -145,14 +176,14 @@ fun UpdatesSection(activity: Activity) {
                     CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
                     Spacer(Modifier.width(8.dp))
                 }
-                Text("Проверить обновление")
+                Text(tr("Проверить обновление"))
             }
             TextButton(onClick = {
                 runCatching { activity.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(Update.RELEASES))) }
-            }) { Text("Все версии на GitHub") }
+            }) { Text(tr("Все версии на GitHub")) }
         }
         Spacer(Modifier.height(6.dp))
-        SmallHint("Проверено: ${ago(Update.checkedAt)}" + (Update.error?.let { " · $it" } ?: ""))
+        SmallHint(tr("Проверено: {когда}", "когда" to ago(Update.checkedAt)) + (Update.error?.let { " · $it" } ?: ""))
     }
 }
 
@@ -161,16 +192,16 @@ fun UpdatesSection(activity: Activity) {
 fun DislikesSection() {
     val muted = Taste.mutedArtists()
     Section(
-        "Не нравится",
-        "Убирает трек из радио и «Может понравиться». Похожее попадается реже: тот же исполнитель, " +
-            "его соседи по каталогу, те же приметы в названии вроде «nightcore», «sped up», «live». " +
-            "Что лежит в ваших плейлистах, фильтр смягчает."
+        tr("Не нравится"),
+        tr("Убирает трек из радио и «Может понравиться». Похожее попадается реже: тот же " +
+            "исполнитель, его соседи по каталогу, те же приметы в названии вроде " +
+            "«nightcore», «sped up», «live». Что лежит в ваших плейлистах, фильтр смягчает.")
     ) {
         if (muted.isNotEmpty()) {
-            SmallHint("Эти исполнители будут попадаться реже: ${muted.joinToString(", ")}")
+            SmallHint(tr("Эти исполнители будут попадаться реже: {исполнители}", "исполнители" to muted.joinToString(", ")))
             Spacer(Modifier.height(8.dp))
         }
-        if (Taste.list.isEmpty()) SmallHint("Пока пусто.")
+        if (Taste.list.isEmpty()) SmallHint(tr("Пока пусто."))
         for (r in Taste.list) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 4.dp)) {
                 Artwork(r.art, 40)
@@ -179,7 +210,7 @@ fun DislikesSection() {
                     Text(r.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     SmallHint("${artistOf(r.artist)} · ${ago(r.at)}")
                 }
-                TextButton(onClick = { Taste.remove(r.id) }) { Text("Вернуть") }
+                TextButton(onClick = { Taste.remove(r.id) }) { Text(tr("Вернуть")) }
             }
         }
     }

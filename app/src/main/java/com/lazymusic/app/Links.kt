@@ -70,7 +70,7 @@ object Links {
         val info = try {
             Engine.extracting { YoutubeDL.getInstance().getInfo(request) }
         } catch (t: Throwable) {
-            throw IOException("не удалось открыть ролик: ${t.message}", t)
+            throw IOException(tr("не удалось открыть ролик: {причина}", "причина" to t.message), t)
         }
         Track(
             id = videoId,

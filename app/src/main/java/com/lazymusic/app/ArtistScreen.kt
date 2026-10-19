@@ -49,9 +49,12 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.util.Locale
 
-/** «228 тыс.», «1,2 млн» — как на ПК. */
+/** «228 тыс.», «1,2 млн» — как на ПК; по-английски «228K», «1.2M». */
 private fun fansShort(n: Long): String = when {
+    Lang.english && n >= 1_000_000 -> String.format(Locale.US, if (n >= 10_000_000) "%.0fM" else "%.1fM", n / 1e6)
+    Lang.english && n >= 1_000 -> "${Math.round(n / 1e3)}K"
     n >= 1_000_000 -> String.format(if (n >= 10_000_000) "%.0f млн" else "%.1f млн", n / 1e6).replace('.', ',')
     n >= 1_000 -> "${Math.round(n / 1e3)} тыс."
     else -> "$n"
@@ -59,14 +62,8 @@ private fun fansShort(n: Long): String = when {
 
 /** «1 подписчик», «228 тыс. подписчиков». */
 private fun fans(n: Long): String {
-    if (n >= 1_000) return "${fansShort(n)} подписчиков"
-    val form = when {
-        n % 100 in 11..14 -> "подписчиков"
-        n % 10 == 1L -> "подписчик"
-        n % 10 in 2..4 -> "подписчика"
-        else -> "подписчиков"
-    }
-    return "$n $form"
+    if (n >= 1_000) return tr("{число} подписчиков", "число" to fansShort(n))
+    return plural(n, "подписчик", "подписчика", "подписчиков", "follower", "followers")
 }
 
 /** Его треки из библиотеки и истории — по ключу исполнителя, без повторов. */
@@ -119,15 +116,15 @@ fun ArtistScreen(
     val best = list.ifEmpty { own }
     val shownName = info?.name?.takeIf { Taste.artistKey(it) == Taste.artistKey(name) } ?: name
     val facts = listOfNotNull(
-        if (own.isNotEmpty()) "в вашей библиотеке ${trackCount(own.size)}"
-        else "в вашей библиотеке пока нет треков этого исполнителя",
-        info?.fans?.takeIf { it > 0 }?.let { "${fans(it)} на Deezer" }
+        if (own.isNotEmpty()) tr("в вашей библиотеке {N треков}", "N треков" to trackCount(own.size))
+        else tr("в вашей библиотеке пока нет треков этого исполнителя"),
+        info?.fans?.takeIf { it > 0 }?.let { tr("{N подписчиков} на Deezer", "N подписчиков" to fans(it)) }
     ).joinToString(" · ")
 
     LazyColumn(Modifier.fillMaxSize()) {
         item {
             IconButton(onClick = onBack, modifier = Modifier.padding(top = 4.dp)) {
-                Icon(Icons.Default.ArrowBack, contentDescription = "Назад")
+                Icon(Icons.Default.ArrowBack, contentDescription = tr("Назад"))
             }
             Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
                 val pic = info?.picture
@@ -145,7 +142,7 @@ fun ArtistScreen(
                 }
                 Spacer(Modifier.width(16.dp))
                 Column(Modifier.weight(1f)) {
-                    Text("Исполнитель", style = MaterialTheme.typography.labelMedium,
+                    Text(tr("Исполнитель"), style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(shownName, style = MaterialTheme.typography.headlineSmall, maxLines = 2,
                         overflow = TextOverflow.Ellipsis)
@@ -162,18 +159,18 @@ fun ArtistScreen(
                 Button(onClick = { onPlay(best, 0) }, enabled = best.isNotEmpty()) {
                     Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(6.dp))
-                    Text("Играть")
+                    Text(tr("Играть"))
                 }
                 OutlinedButton(onClick = { best.firstOrNull()?.let(onRadio) }, enabled = best.isNotEmpty()) {
                     Icon(Icons.Default.Radio, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(6.dp))
-                    Text("Радио исполнителя")
+                    Text(tr("Радио исполнителя"))
                 }
             }
         }
 
         if (own.isNotEmpty()) {
-            item { Heading("В вашей библиотеке") }
+            item { Heading(tr("В вашей библиотеке")) }
             itemsIndexed(own, key = { _, t -> "own-" + t.id }) { i, t ->
                 TrackRow(t, t.id == currentId, t.id in cachedIds, onPlay = { onPlay(own, i) }, onMenu = { onTrackMenu(t) })
             }
@@ -181,13 +178,13 @@ fun ArtistScreen(
 
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Heading("Песни")
+                Heading(tr("Песни"))
                 if (songs == null) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
             }
         }
         when {
-            songs == null -> item { Hint("Ищу в YouTube Music…") }
-            list.isEmpty() -> item { Hint(if (error.isNotBlank()) "Не нашлось: $error" else "В YouTube Music не нашлось.") }
+            songs == null -> item { Hint(tr("Ищу в YouTube Music…")) }
+            list.isEmpty() -> item { Hint(if (error.isNotBlank()) tr("Не нашлось: {причина}", "причина" to error) else tr("В YouTube Music не нашлось.")) }
             else -> itemsIndexed(list, key = { _, t -> "song-" + t.id }) { i, t ->
                 TrackRow(t, t.id == currentId, t.id in cachedIds, onPlay = { onPlay(list, i) }, onMenu = { onTrackMenu(t) })
             }
@@ -196,7 +193,7 @@ fun ArtistScreen(
         val related = info?.related.orEmpty()
         if (related.isNotEmpty()) {
             item {
-                Heading("Похожие исполнители")
+                Heading(tr("Похожие исполнители"))
                 LazyRow(
                     contentPadding = PaddingValues(horizontal = 12.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)

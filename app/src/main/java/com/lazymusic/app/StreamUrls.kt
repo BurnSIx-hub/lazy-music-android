@@ -274,7 +274,7 @@ object StreamUrls {
             val why = Diag.chain(t, 4000)
             Diag.w("$videoId — yt-dlp не отдал поток: ${Diag.cause(t)}")
             if (GONE.any { why.contains(it, ignoreCase = true) }) {
-                throw TrackUnavailable("ролик недоступен: ${t.message}")
+                throw TrackUnavailable(tr("ролик недоступен: {причина}", "причина" to t.message))
             }
             throw IOException("yt-dlp не отдал поток для $videoId: ${Diag.cause(t)}", t)
         }

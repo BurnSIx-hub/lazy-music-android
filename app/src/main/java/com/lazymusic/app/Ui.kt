@@ -127,7 +127,7 @@ fun DislikeButton(track: Track, host: PlayerHost, modifier: Modifier = Modifier)
     IconButton(onClick = { Dislike.toggle(host, track) }, modifier = modifier) {
         Icon(
             if (disliked) Icons.Default.ThumbDown else Icons.Default.ThumbDownOffAlt,
-            contentDescription = if (disliked) "Снять дизлайк" else "Не нравится",
+            contentDescription = if (disliked) tr("Снять дизлайк") else tr("Не нравится"),
             tint = if (disliked) MaterialTheme.colorScheme.primary
             else MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -199,7 +199,7 @@ fun TrackRow(
             )
             val sub = listOfNotNull(
                 track.artist.takeIf { it.isNotBlank() },
-                if (cached) "скачан" else null
+                if (cached) tr("скачан") else null
             ).joinToString(" · ")
             if (sub.isNotBlank()) {
                 Text(
@@ -212,7 +212,7 @@ fun TrackRow(
             }
         }
         IconButton(onClick = onMenu) {
-            Icon(Icons.Default.MoreVert, contentDescription = "Ещё")
+            Icon(Icons.Default.MoreVert, contentDescription = tr("Ещё"))
         }
     }
 }
@@ -228,7 +228,7 @@ fun LikeButton(track: Track, onLike: (Track) -> Unit, modifier: Modifier = Modif
     IconButton(onClick = { onLike(track) }, modifier = modifier) {
         Icon(
             if (liked) Icons.Default.ThumbUp else Icons.Default.ThumbUpOffAlt,
-            contentDescription = if (liked) "Убрать из понравившегося" else "Нравится",
+            contentDescription = if (liked) tr("Убрать из понравившегося") else tr("Нравится"),
             tint = if (liked) MaterialTheme.colorScheme.primary
             else MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -279,7 +279,7 @@ fun MiniPlayer(host: PlayerHost, onLike: (Track) -> Unit, onOpen: () -> Unit) {
                 IconButton(onClick = host::toggle) {
                     Icon(
                         if (host.playing) Icons.Default.Pause else Icons.Default.PlayArrow,
-                        contentDescription = if (host.playing) "Пауза" else "Играть"
+                        contentDescription = if (host.playing) tr("Пауза") else tr("Играть")
                     )
                 }
             }

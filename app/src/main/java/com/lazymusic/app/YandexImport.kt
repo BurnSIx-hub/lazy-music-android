@@ -151,7 +151,7 @@ object YandexImport {
     fun start(text: String): Boolean {
         val link = Yandex.link(text) ?: return false
         scope.launch {
-            val p = Plaques.notice("Беру список из Яндекс Музыки…")
+            val p = Plaques.notice(tr("Беру список из Яндекс Музыки…"))
             val list = try {
                 withContext(Dispatchers.IO) { Yandex.fetch(link) }
             } catch (c: CancellationException) {
@@ -160,13 +160,13 @@ object YandexImport {
                 Log.w(TAG, "импорт: список не взят: ${t.message}")
                 val region = (t as? Yandex.Failure)?.why == Yandex.Why.REGION
                 p.text = t.message ?: t::class.simpleName.orEmpty()
-                p.sub = if (region) "Яндекс пускает только с адресов СНГ. Если включён VPN — выключите его на минуту, пока составляется список" else ""
-                p.actions = listOf(Plaque.Action("Закрыть") { p.close() })
+                p.sub = if (region) tr("Яндекс пускает только с адресов СНГ. Если включён VPN — выключите его на минуту, пока составляется список") else ""
+                p.actions = listOf(Plaque.Action(tr("Закрыть")) { p.close() })
                 return@launch
             }
             p.close()
             if (list.tracks.isEmpty()) {
-                Plaques.toast("В этом плейлисте нет треков")
+                Plaques.toast(tr("В этом плейлисте нет треков"))
                 return@launch
             }
             val name = freeName(list.title)
@@ -190,11 +190,11 @@ object YandexImport {
     /** Свободное имя плейлиста: «Мне нравится» уже есть — «Мне нравится (Яндекс)». */
     private fun freeName(title: String): String {
         val taken = Settings.playlistNames().mapTo(HashSet()) { it.trim().lowercase() }
-        val base = title.trim().ifBlank { "Яндекс Музыка" }
+        val base = title.trim().ifBlank { tr("Яндекс Музыка") }
         if (base.lowercase() !in taken) return base
         var n = 1
         while (true) {
-            val name = if (n == 1) "$base (Яндекс)" else "$base (Яндекс $n)"
+            val name = if (n == 1) tr("{название} (Яндекс)", "название" to base) else tr("{название} (Яндекс {число})", "название" to base, "число" to n)
             if (name.lowercase() !in taken) return name
             n++
         }
@@ -357,13 +357,13 @@ object YandexImport {
         if (hidden) return
         val total = task.items.size
         val settled = total - task.count(State.WAIT)
-        val text = "Импорт «${task.title}»: $settled из $total"
-        val sub = if (stalled) "YouTube не отвечает. Список сохранён — продолжу сам, когда он станет доступен"
-        else "Найдено ${task.count(State.OK)}, плейлист «${task.name}»"
+        val text = tr("Импорт «{название в Яндексе}»: {обработано} из {всего}", "название в Яндексе" to task.title, "обработано" to settled, "всего" to total)
+        val sub = if (stalled) tr("YouTube не отвечает. Список сохранён — продолжу сам, когда он станет доступен")
+        else tr("Найдено {найдено}, плейлист «{плейлист}»", "найдено" to task.count(State.OK), "плейлист" to task.name)
         val p = plaque?.takeIf { it in Plaques.items } ?: Plaques.notice(text).also { plaque = it }
         p.text = text
         p.sub = sub
-        p.actions = listOf(Plaque.Action("Скрыть", quiet = true) { hidden = true; plaque?.close(); plaque = null })
+        p.actions = listOf(Plaque.Action(tr("Скрыть"), quiet = true) { hidden = true; plaque?.close(); plaque = null })
         p.progress = if (total > 0) settled.toFloat() / total else 0f
     }
 
@@ -373,11 +373,11 @@ object YandexImport {
         val ok = task.count(State.OK)
         val miss = task.count(State.MISS)
         lateinit var p: Plaque
-        val actions = mutableListOf(Plaque.Action("Закрыть", quiet = miss > 0) { p.close() })
-        if (miss > 0) actions += Plaque.Action("Что не нашлось") { p.close(); missing = task }
+        val actions = mutableListOf(Plaque.Action(tr("Закрыть"), quiet = miss > 0) { p.close() })
+        if (miss > 0) actions += Plaque.Action(tr("Что не нашлось")) { p.close(); missing = task }
         p = Plaques.notice(
-            "Импорт «${task.title}» готов",
-            "В плейлисте «${task.name}» ${trackCount(ok)}" + (if (miss > 0) ", не нашлось $miss" else ""),
+            tr("Импорт «{название в Яндексе}» готов", "название в Яндексе" to task.title),
+            tr("В плейлисте «{плейлист}» {N треков}", "плейлист" to task.name, "N треков" to trackCount(ok)) + (if (miss > 0) tr(", не нашлось {число}", "число" to miss) else ""),
             actions
         )
     }
@@ -391,11 +391,11 @@ fun ImportMissingDialog() {
     val close = { YandexImport.missing = null }
     AlertDialog(
         onDismissRequest = close,
-        title = { Text("Не нашлось на YouTube: ${lost.size}") },
+        title = { Text(tr("Не нашлось на YouTube: {число}", "число" to lost.size)) },
         text = {
             Column {
                 Text(
-                    "Из «${task.title}». Их можно найти поиском и добавить в «${task.name}» вручную.",
+                    tr("Из «{название в Яндексе}». Их можно найти поиском и добавить в «{плейлист}» вручную.", "название в Яндексе" to task.title, "плейлист" to task.name),
                     style = MaterialTheme.typography.bodyMedium
                 )
                 Spacer(Modifier.height(10.dp))
@@ -411,6 +411,6 @@ fun ImportMissingDialog() {
                 }
             }
         },
-        confirmButton = { TextButton(onClick = close) { Text("Закрыть") } }
+        confirmButton = { TextButton(onClick = close) { Text(tr("Закрыть")) } }
     )
 }

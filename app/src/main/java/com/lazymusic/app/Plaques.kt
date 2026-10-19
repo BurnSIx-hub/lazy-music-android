@@ -109,7 +109,7 @@ object Plaques {
      */
     fun undoable(text: String, sub: String, ms: Long, onUndo: () -> Unit, onDone: () -> Unit): Plaque {
         lateinit var p: Plaque
-        p = Plaque(text, sub, listOf(Plaque.Action("Отменить") {
+        p = Plaque(text, sub, listOf(Plaque.Action(tr("Отменить")) {
             if (p.settled) return@Action
             p.settled = true
             p.close()

@@ -101,8 +101,8 @@ fun LibraryScreen(
 
     if (showCached) {
         SimpleTrackList(
-            title = "Скачано",
-            subtitle = trackCount(cachedTracks.size) + ", играют без сети",
+            title = tr("Скачано"),
+            subtitle = trackCount(cachedTracks.size) + tr(", играют без сети"),
             tracks = cachedTracks,
             cachedIds = cachedIds,
             currentId = currentId,
@@ -137,12 +137,12 @@ fun LibraryScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                "Мои плейлисты",
+                tr("Мои плейлисты"),
                 style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.weight(1f)
             )
             IconButton(onClick = { creating = true }) {
-                Icon(Icons.Default.Add, contentDescription = "Создать плейлист")
+                Icon(Icons.Default.Add, contentDescription = tr("Создать плейлист"))
             }
         }
 
@@ -151,16 +151,16 @@ fun LibraryScreen(
             if (cachedTracks.isNotEmpty()) {
                 item {
                     ListItem(
-                        headlineContent = { Text("Скачано", fontWeight = FontWeight.Medium) },
+                        headlineContent = { Text(tr("Скачано"), fontWeight = FontWeight.Medium) },
                         supportingContent = {
-                            Text(trackCount(cachedTracks.size) + ", играют без сети")
+                            Text(trackCount(cachedTracks.size) + tr(", играют без сети"))
                         },
                         leadingContent = {
                             Icon(Icons.Default.DownloadDone, contentDescription = null)
                         },
                         trailingContent = {
                             IconButton(onClick = { onPlay(cachedTracks, 0) }) {
-                                Icon(Icons.Default.PlayArrow, contentDescription = "Играть")
+                                Icon(Icons.Default.PlayArrow, contentDescription = tr("Играть"))
                             }
                         },
                         modifier = Modifier.clickable { showCached = true }
@@ -173,9 +173,9 @@ fun LibraryScreen(
             item {
                 val count = Likes.ids.size
                 ListItem(
-                    headlineContent = { Text(Likes.LIST, fontWeight = FontWeight.Medium) },
+                    headlineContent = { Text(tr(Likes.LIST), fontWeight = FontWeight.Medium) },
                     supportingContent = {
-                        Text(if (count == 0) "Здесь будут отображаться треки, которые вам понравились" else trackCount(count))
+                        Text(if (count == 0) tr("Здесь будут отображаться треки, которые вам понравились") else trackCount(count))
                     },
                     leadingContent = {
                         Icon(
@@ -189,7 +189,7 @@ fun LibraryScreen(
                             onClick = { onPlay(Settings.playlist(Likes.LIST), 0) },
                             enabled = count > 0
                         ) {
-                            Icon(Icons.Default.PlayArrow, contentDescription = "Играть")
+                            Icon(Icons.Default.PlayArrow, contentDescription = tr("Играть"))
                         }
                     },
                     modifier = Modifier.clickable { opened = Likes.LIST }
@@ -199,7 +199,7 @@ fun LibraryScreen(
             val own = names.filter { it != Likes.LIST }
             if (own.isEmpty()) {
                 item {
-                    EmptyHint("Своих плейлистов пока нет.\nНажмите «плюс», а треки добавляйте из поиска.")
+                    EmptyHint(tr("Своих плейлистов пока нет.\nНажмите «плюс», а треки добавляйте из поиска."))
                 }
             } else {
                 items(own, key = { it }) { name ->
@@ -215,7 +215,7 @@ fun LibraryScreen(
                                 onClick = { if (tracks.isNotEmpty()) onPlay(tracks, 0) },
                                 enabled = tracks.isNotEmpty()
                             ) {
-                                Icon(Icons.Default.PlayArrow, contentDescription = "Играть")
+                                Icon(Icons.Default.PlayArrow, contentDescription = tr("Играть"))
                             }
                         },
                         modifier = Modifier.clickable { opened = name }
@@ -228,8 +228,8 @@ fun LibraryScreen(
 
     if (creating) {
         NameDialog(
-            title = "Новый плейлист",
-            confirm = "Создать",
+            title = tr("Новый плейлист"),
+            confirm = tr("Создать"),
             onDismiss = { creating = false },
             onConfirm = { name ->
                 Settings.createPlaylist(name)
@@ -258,7 +258,7 @@ private fun SimpleTrackList(
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onBack) {
-                Icon(Icons.Default.ArrowBack, contentDescription = "Назад")
+                Icon(Icons.Default.ArrowBack, contentDescription = tr("Назад"))
             }
             Column(Modifier.weight(1f)) {
                 Text(title, style = MaterialTheme.typography.titleLarge, maxLines = 1)
@@ -269,7 +269,7 @@ private fun SimpleTrackList(
                 )
             }
             IconButton(onClick = { if (tracks.isNotEmpty()) onPlay(tracks, 0) }) {
-                Icon(Icons.Default.PlayArrow, contentDescription = "Играть всё")
+                Icon(Icons.Default.PlayArrow, contentDescription = tr("Играть всё"))
             }
         }
         LazyColumn(Modifier.fillMaxSize()) {
@@ -323,24 +323,24 @@ private fun PlaylistDetail(
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onBack) {
-                Icon(Icons.Default.ArrowBack, contentDescription = "Назад")
+                Icon(Icons.Default.ArrowBack, contentDescription = tr("Назад"))
             }
             Column(Modifier.weight(1f)) {
-                MarqueeText(name, style = MaterialTheme.typography.titleLarge)
+                MarqueeText(if (liked) tr(name) else name, style = MaterialTheme.typography.titleLarge)
                 // Скачан для игры без сети — сколько уже в кэше (Offline)
                 val offline = Offline.isOn(name)
                 val have = if (offline) tracks.count { it.id in cachedIds } else 0
                 // В одну строку: «· ждёт Wi-Fi» переносилось и обрезалось шапкой (S23)
                 MarqueeText(
                     if (!offline) trackCount(tracks.size)
-                    else trackCount(tracks.size) + " · скачано $have" +
-                        if (have < tracks.size && Offline.waitingWifi) " · для скачивания подключитесь к Wi-Fi" else "",
+                    else trackCount(tracks.size) + tr(" · скачано {скачано}", "скачано" to have) +
+                        if (have < tracks.size && Offline.waitingWifi) tr(" · для скачивания подключитесь к Wi-Fi") else "",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             IconButton(onClick = { if (tracks.isNotEmpty()) onPlay(tracks, 0) }) {
-                Icon(Icons.Default.PlayArrow, contentDescription = "Играть всё")
+                Icon(Icons.Default.PlayArrow, contentDescription = tr("Играть всё"))
             }
             // Скачать весь плейлист для игры без сети — как в Spotify
             val offline = Offline.isOn(name)
@@ -348,7 +348,7 @@ private fun PlaylistDetail(
                 Icon(
                     if (offline) Icons.Filled.DownloadForOffline
                     else Icons.Outlined.DownloadForOffline,
-                    contentDescription = if (offline) "Отменить скачивание" else "Скачать плейлист",
+                    contentDescription = if (offline) tr("Отменить скачивание") else tr("Скачать плейлист"),
                     tint = if (offline) MaterialTheme.colorScheme.primary else LocalContentColor.current
                 )
             }
@@ -359,12 +359,12 @@ private fun PlaylistDetail(
                 IconButton(onClick = onImportLikes) {
                     Icon(
                         Icons.Default.CloudDownload,
-                        contentDescription = "Забрать из YouTube Music"
+                        contentDescription = tr("Забрать из YouTube Music")
                     )
                 }
             } else {
                 IconButton(onClick = { confirmDelete = true }) {
-                    Icon(Icons.Default.Delete, contentDescription = "Удалить плейлист")
+                    Icon(Icons.Default.Delete, contentDescription = tr("Удалить плейлист"))
                 }
             }
         }
@@ -374,12 +374,12 @@ private fun PlaylistDetail(
             OutlinedTextField(
                 value = find,
                 onValueChange = { find = it },
-                placeholder = { Text("Поиск") },
+                placeholder = { Text(tr("Поиск")) },
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                 trailingIcon = {
                     if (find.isNotEmpty()) {
                         IconButton(onClick = { find = ""; focus.clearFocus() }) {
-                            Icon(Icons.Default.Close, contentDescription = "Закрыть")
+                            Icon(Icons.Default.Close, contentDescription = tr("Закрыть"))
                         }
                     }
                 },
@@ -393,11 +393,11 @@ private fun PlaylistDetail(
 
         if (tracks.isEmpty()) {
             EmptyHint(
-                if (liked) "Здесь пусто.\nЛайкните трек или импортируйте с YouTube."
-                else "Здесь пусто.\nДобавьте треки из поиска — кнопка «Ещё» у трека."
+                if (liked) tr("Здесь пусто.\nЛайкните трек или импортируйте с YouTube.")
+                else tr("Здесь пусто.\nДобавьте треки из поиска — кнопка «Ещё» у трека.")
             )
         } else if (shown.isEmpty()) {
-            EmptyHint("Ничего не нашлось.")
+            EmptyHint(tr("Ничего не нашлось."))
         } else {
             // Снимок списка — тот же, из которого посчитаны номера в shown.
             // Ключ, читавший сам tracks, падал у знакомой (2026-10-19): после
@@ -425,18 +425,18 @@ private fun PlaylistDetail(
     if (confirmDelete) {
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
-            title = { Text("Вы уверены, что хотите удалить плейлист?") },
-            text = { Text("«$name» и его список треков. Сами файлы в кэше останутся.") },
+            title = { Text(tr("Вы уверены, что хотите удалить плейлист?")) },
+            text = { Text(tr("«{название}» и его список треков. Сами файлы в кэше останутся.", "название" to name)) },
             confirmButton = {
                 TextButton(onClick = {
                     Settings.deletePlaylist(name)
                     confirmDelete = false
                     onChanged()
                     onBack()
-                }) { Text("Удалить") }
+                }) { Text(tr("Удалить")) }
             },
             dismissButton = {
-                TextButton(onClick = { confirmDelete = false }) { Text("Отмена") }
+                TextButton(onClick = { confirmDelete = false }) { Text(tr("Отмена")) }
             }
         )
     }
@@ -489,7 +489,7 @@ fun SearchScreen(
                 OutlinedTextField(
                     value = query,
                     onValueChange = onQueryChange,
-                    label = { Text("Поиск") },
+                    label = { Text(tr("Поиск")) },
                     singleLine = true,
                     // Лупа на клавиатуре ищет так же, как кнопка рядом
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
@@ -506,7 +506,7 @@ fun SearchScreen(
                 ) {
                     // Кружок прямо в кнопке: отклик нужен там, куда смотрит палец
                     if (searching) ButtonSpinner() else {
-                        Icon(Icons.Default.Search, contentDescription = "Найти")
+                        Icon(Icons.Default.Search, contentDescription = tr("Найти"))
                     }
                 }
             }
@@ -532,7 +532,7 @@ fun SearchScreen(
             // наезжает на рамку
             Spacer(Modifier.height(18.dp))
             Text(
-                "Ссылка на ролик или плейлист YouTube / Яндекс Музыки",
+                tr("Ссылка на ролик или плейлист YouTube / Яндекс Музыки"),
                 // В одну строку на S23 не входит и мелким шрифтом — строки
                 // выравниваются по длине, без одинокого «Музыки» внизу
                 style = MaterialTheme.typography.bodyMedium.copy(lineBreak = LineBreak.Heading),
@@ -559,16 +559,16 @@ fun SearchScreen(
                     onClick = { focus.clearFocus(); onOpenPlaylist() },
                     enabled = !busy && playlistUrl.isNotBlank()
                 ) {
-                    if (opening) ButtonSpinner() else Text("Открыть")
+                    if (opening) ButtonSpinner() else Text(tr("Открыть"))
                 }
             }
         }
 
         if (!hasKey) {
             Notice(
-                "Без ключа API не работают поиск и плейлисты. " +
-                    "Ссылка на ролик работает и без него — вставьте её в поле выше. " +
-                    "Ключ задаётся в настройках, шестерёнка сверху.",
+                tr("Без ключа API не работают поиск и плейлисты. Ссылка на ролик работает " +
+                    "и без него — вставьте её в поле выше. Ключ задаётся в настройках, " +
+                    "шестерёнка сверху."),
                 MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
@@ -585,7 +585,7 @@ fun SearchScreen(
         )
 
         if (results.isEmpty()) {
-            EmptyHint("Здесь появятся находки.")
+            EmptyHint(tr("Здесь появятся находки."))
         } else {
             Text(
                 resultsTitle,
@@ -613,7 +613,7 @@ fun SearchScreen(
                             contentAlignment = Alignment.Center
                         ) {
                             OutlinedButton(onClick = onLoadMore, enabled = !busy) {
-                                if (loadingMore) ButtonSpinner() else Text("Показать ещё 50")
+                                if (loadingMore) ButtonSpinner() else Text(tr("Показать ещё 50"))
                             }
                         }
                     }
@@ -643,7 +643,7 @@ fun NameDialog(
             OutlinedTextField(
                 value = text,
                 onValueChange = { text = it },
-                label = { Text("Название") },
+                label = { Text(tr("Название")) },
                 singleLine = true
             )
         },
@@ -652,19 +652,11 @@ fun NameDialog(
                 Text(confirm)
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(tr("Отмена")) } }
     )
 }
 
-fun trackCount(n: Int): String {
-    val form = when {
-        n % 100 in 11..14 -> "треков"
-        n % 10 == 1 -> "трек"
-        n % 10 in 2..4 -> "трека"
-        else -> "треков"
-    }
-    return "$n $form"
-}
+fun trackCount(n: Int): String = plural(n.toLong(), "трек", "трека", "треков", "track", "tracks")
 
 /** Со скольких треков у плейлиста появляется строка поиска. */
 private const val FIND_FROM = 10

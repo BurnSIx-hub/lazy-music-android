@@ -104,7 +104,7 @@ object Downloads {
 
             val file = Cache.find(app, track.id)
             if (file == null) {
-                failures[track.id] = "файл не появился в кэше"
+                failures[track.id] = tr("файл не появился в кэше")
                 Log.e(TAG, "скачали ${track.id}, но файла нет")
                 false
             } else {

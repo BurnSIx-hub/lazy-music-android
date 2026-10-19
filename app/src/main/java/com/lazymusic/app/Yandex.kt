@@ -89,7 +89,7 @@ object Yandex {
                     for (i in 0 until disc.length()) entry(disc.optJSONObject(i))?.let(tracks::add)
                 }
             }
-            return Listing(text(a, "title").ifBlank { "Альбом" }, tracks)
+            return Listing(text(a, "title").ifBlank { tr("Альбом") }, tracks)
         }
         val pl = when (link) {
             is Link.Shared -> api("/playlist/${enc(link.uuid)}?richTracks=true", get)
@@ -114,7 +114,7 @@ object Yandex {
                 ?: text(r, "id").let { id -> full[id.substringBefore(':')] ?: full[id] }
             entry(t)
         }
-        return Listing(text(pl, "title").ifBlank { "Яндекс Музыка" }, tracks)
+        return Listing(text(pl, "title").ifBlank { tr("Яндекс Музыка") }, tracks)
     }
 
     fun entry(t: JSONObject?): Entry? {
@@ -141,7 +141,7 @@ object Yandex {
 
     // ── Внутреннее ───────────────────────────────────────────────────────────
 
-    private fun format() = Failure(Why.FORMAT, "Некорректный ответ Яндекса")
+    private fun format() = Failure(Why.FORMAT, tr("Некорректный ответ Яндекса"))
 
     private fun api(path: String, get: (String) -> Answer): Any? {
         val r = get(API + path)

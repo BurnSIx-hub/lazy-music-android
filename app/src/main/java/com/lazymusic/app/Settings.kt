@@ -48,6 +48,11 @@ object Settings {
         get() = prefs.getBoolean(KEY_WIDE_RADIO, true)
         set(value) = prefs.edit().putBoolean(KEY_WIDE_RADIO, value).apply()
 
+    /** Язык надписей: "" — как в системе, "ru", "en" — см. [Lang]. */
+    var lang: String
+        get() = prefs.getString("lang", "").orEmpty()
+        set(value) = prefs.edit().putString("lang", value).apply()
+
     // ── Обновление yt-dlp ────────────────────────────────────────────────────
 
     private const val KEY_ENGINE_CHECKED = "engine_checked_at"

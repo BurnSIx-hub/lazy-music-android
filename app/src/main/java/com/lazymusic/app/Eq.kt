@@ -35,7 +35,7 @@ import kotlin.math.sqrt
 object Eq {
 
     val BANDS = intArrayOf(31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000)
-    val LABELS = listOf("31", "62", "125", "250", "500", "1к", "2к", "4к", "8к", "16к")
+    val LABELS = listOf("31", "62", "125", "250", "500", trKey("1к"), trKey("2к"), trKey("4к"), trKey("8к"), trKey("16к"))
 
     /** Предел полосы, дБ. */
     const val LIMIT = 12
@@ -53,15 +53,15 @@ object Eq {
     class Preset(val key: String, val name: String, val gains: IntArray)
 
     val PRESETS = listOf(
-        Preset("flat", "Обычный", intArrayOf(0, 0, 0, 0, 0, 0, 0, 0, 0, 0)),
-        Preset("bass", "Больше баса", intArrayOf(6, 5, 4, 2, 0, 0, 0, 0, 0, 0)),
-        Preset("lessbass", "Меньше баса", intArrayOf(-6, -5, -4, -2, 0, 0, 0, 0, 0, 0)),
-        Preset("vocal", "Голос", intArrayOf(-2, -2, -1, 1, 3, 4, 3, 1, 0, -1)),
-        Preset("treble", "Больше высоких", intArrayOf(0, 0, 0, 0, 0, 1, 2, 4, 5, 6)),
-        Preset("rock", "Рок", intArrayOf(5, 4, 2, -1, -2, -1, 2, 4, 5, 5)),
-        Preset("electro", "Электроника", intArrayOf(5, 4, 1, 0, -2, 1, 0, 2, 4, 5)),
-        Preset("classic", "Классика", intArrayOf(4, 3, 2, 1, -1, -1, 0, 2, 3, 4)),
-        Preset("acoustic", "Акустика", intArrayOf(3, 3, 2, 1, 1, 1, 2, 2, 2, 1)),
+        Preset("flat", trKey("Обычный"), intArrayOf(0, 0, 0, 0, 0, 0, 0, 0, 0, 0)),
+        Preset("bass", trKey("Больше баса"), intArrayOf(6, 5, 4, 2, 0, 0, 0, 0, 0, 0)),
+        Preset("lessbass", trKey("Меньше баса"), intArrayOf(-6, -5, -4, -2, 0, 0, 0, 0, 0, 0)),
+        Preset("vocal", trKey("Голос"), intArrayOf(-2, -2, -1, 1, 3, 4, 3, 1, 0, -1)),
+        Preset("treble", trKey("Больше высоких"), intArrayOf(0, 0, 0, 0, 0, 1, 2, 4, 5, 6)),
+        Preset("rock", trKey("Рок"), intArrayOf(5, 4, 2, -1, -2, -1, 2, 4, 5, 5)),
+        Preset("electro", trKey("Электроника"), intArrayOf(5, 4, 1, 0, -2, 1, 0, 2, 4, 5)),
+        Preset("classic", trKey("Классика"), intArrayOf(4, 3, 2, 1, -1, -1, 0, 2, 3, 4)),
+        Preset("acoustic", trKey("Акустика"), intArrayOf(3, 3, 2, 1, 1, 1, 2, 2, 2, 1)),
     )
 
     /** Что применено: полосы в дБ или null — эквалайзер выключен. */
