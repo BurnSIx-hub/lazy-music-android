@@ -3,6 +3,7 @@ package com.lazymusic.app
 import android.app.Activity
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -17,6 +18,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.Icon
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -31,6 +35,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Devices
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLinkStyles
@@ -53,6 +65,41 @@ fun ago(ms: Long): String {
         s < 86_400 -> tr("{часов} ч назад", "часов" to Math.round(s / 3600.0))
         Lang.english -> SimpleDateFormat("MMMM d, HH:mm", Locale.ENGLISH).format(Date(ms))
         else -> SimpleDateFormat("d MMMM, HH:mm", Locale("ru")).format(Date(ms))
+    }
+}
+
+/**
+ * Группы настроек — те же пять, что на ПК. Названия и пояснения — ключи
+ * перевода: список собирается один раз, а язык меняют на ходу.
+ */
+enum class SettingsGroup(val title: String, val hint: String, val icon: ImageVector) {
+    MAIN(trKey("Общие"), trKey("Язык, обновления, ключ YouTube Data API"), Icons.Default.Settings),
+    MUSIC(trKey("Музыка"), trKey("Радио и «Не нравится»"), Icons.Default.MusicNote),
+    LINK(trKey("Сопряжение"), trKey("Компьютер и модуль Foundry"), Icons.Default.Devices),
+    FILES(trKey("Скачанное"), trKey("Кэш и скачивание плейлистов"), Icons.Default.Download),
+    SERVICE(trKey("Служебное"), trKey("yt-dlp и журнал"), Icons.Default.Build),
+}
+
+/**
+ * Первая страница настроек — список групп, как в настройках Android.
+ * Вышла новая версия — у «Основного» вместо пояснения «Доступна …».
+ */
+@Composable
+fun SettingsGroups(onOpen: (SettingsGroup) -> Unit) {
+    Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)) {
+        for (g in SettingsGroup.entries) {
+            val found = Update.found.takeIf { g == SettingsGroup.MAIN }
+            ListItem(
+                headlineContent = { Text(tr(g.title)) },
+                supportingContent = {
+                    if (found != null) Text(tr("Доступна {версия}", "версия" to found.version), color = MaterialTheme.colorScheme.primary)
+                    else Text(tr(g.hint))
+                },
+                leadingContent = { Icon(g.icon, contentDescription = null) },
+                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                modifier = Modifier.clickable { onOpen(g) }
+            )
+        }
     }
 }
 

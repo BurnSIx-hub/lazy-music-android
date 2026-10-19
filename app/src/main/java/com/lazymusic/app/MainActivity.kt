@@ -52,6 +52,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -122,6 +123,8 @@ class MainActivity : ComponentActivity() {
     // Прочее состояние экранов
     private var menuTrack by mutableStateOf<Track?>(null)
     private var settingsOpen by mutableStateOf(false)
+    /** Открытая группа настроек; null — список групп. */
+    private var settingsGroup by mutableStateOf<SettingsGroup?>(null)
     private var eqOpen by mutableStateOf(false)
 
     /** Открытая страница исполнителя — поверх вкладки, «назад» к ней же. */
@@ -152,7 +155,11 @@ class MainActivity : ComponentActivity() {
         Lang.apply()
         host = PlayerHost(this)
         requestNotificationsIfNeeded()
-        if (!Settings.hasApiKey) settingsOpen = true
+        // Без ключа — сразу в группу, где он задаётся
+        if (!Settings.hasApiKey) {
+            settingsOpen = true
+            settingsGroup = SettingsGroup.MAIN
+        }
         WhatsNew.check(this)
         // Проверка импорта на образцах ответов Яндекса — из Испании он
         // отвечает 451. Только в отладочной сборке:
@@ -575,10 +582,12 @@ class MainActivity : ComponentActivity() {
         topBar = {
             Column {
                 TopAppBar(
-                    title = { Text(if (settingsOpen) tr("Настройки") else tabTitle(tab)) },
+                    title = {
+                        Text(if (settingsOpen) settingsGroup?.let { tr(it.title) } ?: tr("Настройки") else tabTitle(tab))
+                    },
                     navigationIcon = {
                         if (settingsOpen) {
-                            IconButton(onClick = { settingsOpen = false }) {
+                            IconButton(onClick = ::settingsBack) {
                                 Icon(Icons.Default.ArrowBack, contentDescription = tr("Назад"))
                             }
                         }
@@ -762,7 +771,9 @@ class MainActivity : ComponentActivity() {
             recent = Settings.recentTracks()
             Recommend.refreshIfStale(this@MainActivity)
         }
-        BackHandler(enabled = settingsOpen) { settingsOpen = false }
+        BackHandler(enabled = settingsOpen) { settingsBack() }
+        // Закрыли настройки — в следующий раз они откроются со списка групп
+        LaunchedEffect(settingsOpen) { if (!settingsOpen) settingsGroup = null }
 
         menuTrack?.let { track ->
             TrackMenu(
@@ -816,131 +827,145 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Настройки — отдельной страницей с разделами, как на ПК: их стало
-     * больше, чем помещается в окно.
+     * Настройки — как на ПК, группами: сначала список из пяти групп
+     * ([SettingsGroups]), в группе — её разделы. Одной лентой их стало
+     * больше, чем удобно листать (2026-10-19).
      */
     @Composable
     private fun SettingsPage() {
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(vertical = 6.dp)) {
-            LanguageSection()
-            UpdatesSection(this@MainActivity)
-
-            var keyInput by remember { mutableStateOf(Settings.apiKey) }
-            // Ключ прячем: он виден через плечо и попадает в снимки экрана
-            var reveal by remember { mutableStateOf(false) }
-            Section(
-                "YouTube Data API",
-                tr("Создайте ключ в Google Cloud Console: проект → «YouTube Data API v3» → «Создать учётные данные» → ключ API.")
-            ) {
-                OutlinedTextField(
-                    value = keyInput,
-                    onValueChange = { keyInput = it },
-                    label = { Text(tr("Ключ YouTube Data API v3")) },
-                    singleLine = true,
-                    visualTransformation = if (reveal) VisualTransformation.None else PasswordVisualTransformation(),
-                    trailingIcon = {
-                        IconButton(onClick = { reveal = !reveal }) {
-                            Icon(
-                                if (reveal) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                                contentDescription = if (reveal) tr("Скрыть") else tr("Показать")
-                            )
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Row {
-                    TextButton(onClick = {
-                        Settings.apiKey = keyInput
-                        Plaques.toast(if (keyInput.isNotBlank()) tr("Ключ сохранён") else tr("Ключ убран"))
-                    }) { Text(tr("Сохранить")) }
-                    TextButton(onClick = {
-                        openInBrowser("https://console.cloud.google.com/apis/library/youtube.googleapis.com")
-                    }) { Text(tr("Открыть Google Cloud Console")) }
-                }
-            }
-
-            Section(tr("Радио")) {
-                var wide by remember { mutableStateOf(Settings.wideRadio) }
-                SwitchRow(
-                    tr("Разнообразить радио"),
-                    tr("Подбирает похожие треки. Сбор занимает до минуты и идёт уже во время игры."),
-                    wide
-                ) { wide = it; Settings.wideRadio = it }
-            }
-
-            DislikesSection()
-
-            Section(tr("Компьютер")) { HubSection() }
-
-            Section(tr("Модуль Foundry")) {
-                ShareSection()
-                TextButton(onClick = {
-                    settingsOpen = false
-                    openYtMusic()
-                }) {
-                    Text(tr("Забрать понравившееся из YouTube Music"))
-                }
-            }
-
-            Section(tr("Скачанное")) {
-                // Плейлисты без сети (Offline) по умолчанию качаются только по Wi-Fi
-                var mobile by remember { mutableStateOf(Settings.offlineOnMobile) }
-                SwitchRow(
-                    tr("Скачивать плейлисты по мобильной сети"),
-                    if (mobile) tr("Плейлисты качаются и по мобильной сети")
-                    else tr("Плейлисты, скачанные для игры без сети, докачиваются только по Wi-Fi"),
-                    mobile
-                ) {
-                    mobile = it
-                    Settings.offlineOnMobile = it
-                    if (it) Offline.kick()
-                }
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    tr("В кэше: {число} шт., {МБ} МБ", "число" to cachedIds.size, "МБ" to (Cache.sizeBytes(this@MainActivity) / (1024 * 1024))),
-                    style = MaterialTheme.typography.bodySmall
-                )
-                if (cachedIds.isNotEmpty()) {
-                    // Подтверждение вторым нажатием: окно внутри окна здесь
-                    // было бы капризным, а потерять скачанное обидно
-                    var confirm by remember { mutableStateOf(false) }
-                    TextButton(onClick = {
-                        if (confirm) {
-                            clearCache()
-                            confirm = false
-                        } else confirm = true
-                    }) {
-                        Text(
-                            if (confirm) tr("Точно удалить всё скачанное?") else tr("Очистить кэш"),
-                            color = if (confirm) MaterialTheme.colorScheme.error
-                            else MaterialTheme.colorScheme.primary
+        val group = settingsGroup
+        // Своя прокрутка у каждой группы: открыл другую — она сверху
+        val scroll = key(group) { rememberScrollState() }
+        Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(vertical = 6.dp)) {
+            when (group) {
+                null -> SettingsGroups { settingsGroup = it }
+                SettingsGroup.MAIN -> {
+                    LanguageSection()
+                    UpdatesSection(this@MainActivity)
+                    var keyInput by remember { mutableStateOf(Settings.apiKey) }
+                    // Ключ прячем: он виден через плечо и попадает в снимки экрана
+                    var reveal by remember { mutableStateOf(false) }
+                    Section(
+                        "YouTube Data API",
+                        tr("Создайте ключ в Google Cloud Console: проект → «YouTube Data API v3» → «Создать учётные данные» → ключ API.")
+                    ) {
+                        OutlinedTextField(
+                            value = keyInput,
+                            onValueChange = { keyInput = it },
+                            label = { Text(tr("Ключ YouTube Data API v3")) },
+                            singleLine = true,
+                            visualTransformation = if (reveal) VisualTransformation.None else PasswordVisualTransformation(),
+                            trailingIcon = {
+                                IconButton(onClick = { reveal = !reveal }) {
+                                    Icon(
+                                        if (reveal) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                        contentDescription = if (reveal) tr("Скрыть") else tr("Показать")
+                                    )
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
                         )
+                        Row {
+                            TextButton(onClick = {
+                                Settings.apiKey = keyInput
+                                Plaques.toast(if (keyInput.isNotBlank()) tr("Ключ сохранён") else tr("Ключ убран"))
+                            }) { Text(tr("Сохранить")) }
+                            TextButton(onClick = {
+                                openInBrowser("https://console.cloud.google.com/apis/library/youtube.googleapis.com")
+                            }) { Text(tr("Открыть Google Cloud Console")) }
+                        }
+                    }
+                }
+                SettingsGroup.MUSIC -> {
+                    Section(tr("Радио")) {
+                        var wide by remember { mutableStateOf(Settings.wideRadio) }
+                        SwitchRow(
+                            tr("Разнообразить радио"),
+                            tr("Подбирает похожие треки. Сбор занимает до минуты и идёт уже во время игры."),
+                            wide
+                        ) { wide = it; Settings.wideRadio = it }
+                    }
+                    DislikesSection()
+                }
+                SettingsGroup.LINK -> {
+                    Section(tr("Компьютер")) { HubSection() }
+                    Section(tr("Модуль Foundry")) {
+                        ShareSection()
+                        TextButton(onClick = {
+                            settingsOpen = false
+                            openYtMusic()
+                        }) {
+                            Text(tr("Забрать понравившееся из YouTube Music"))
+                        }
+                    }
+                }
+                SettingsGroup.FILES -> {
+                    Section(tr("Скачанное")) {
+                        // Плейлисты без сети (Offline) по умолчанию качаются только по Wi-Fi
+                        var mobile by remember { mutableStateOf(Settings.offlineOnMobile) }
+                        SwitchRow(
+                            tr("Скачивать плейлисты по мобильной сети"),
+                            if (mobile) tr("Плейлисты качаются и по мобильной сети")
+                            else tr("Плейлисты, скачанные для игры без сети, докачиваются только по Wi-Fi"),
+                            mobile
+                        ) {
+                            mobile = it
+                            Settings.offlineOnMobile = it
+                            if (it) Offline.kick()
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            tr("В кэше: {число} шт., {МБ} МБ", "число" to cachedIds.size, "МБ" to (Cache.sizeBytes(this@MainActivity) / (1024 * 1024))),
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        if (cachedIds.isNotEmpty()) {
+                            // Подтверждение вторым нажатием: окно внутри окна здесь
+                            // было бы капризным, а потерять скачанное обидно
+                            var confirm by remember { mutableStateOf(false) }
+                            TextButton(onClick = {
+                                if (confirm) {
+                                    clearCache()
+                                    confirm = false
+                                } else confirm = true
+                            }) {
+                                Text(
+                                    if (confirm) tr("Точно удалить всё скачанное?") else tr("Очистить кэш"),
+                                    color = if (confirm) MaterialTheme.colorScheme.error
+                                    else MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                    }
+                }
+                SettingsGroup.SERVICE -> {
+                    Section("yt-dlp") {
+                        // Обновляется он сам — см. Engine. Кнопка оставлена
+                        // на случай, когда хочется убедиться своими глазами
+                        Text(
+                            tr("yt-dlp {версия yt-dlp} — обновляется сам, при запуске и когда " +
+                                "добыча звука ломается.", "версия yt-dlp" to (Engine.version ?: tr("встроенный"))),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        TextButton(onClick = ::updateEngine, enabled = !busy) {
+                            Text(tr("Проверить обновление"))
+                        }
+                        Notice(status, MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Section(tr("Журнал")) {
+                        // Ник Telegram в пояснении — ссылка (LinkHint)
+                        LinkHint(tr("Все логи. В случае какого-либо сбоя отправьте логи @keyno21"))
+                        TextButton(onClick = ::sendLog) { Text(tr("Отправить логи")) }
                     }
                 }
             }
-
-            Section("yt-dlp") {
-                // Обновляется он сам — см. Engine. Кнопка оставлена
-                // на случай, когда хочется убедиться своими глазами
-                Text(
-                    tr("yt-dlp {версия yt-dlp} — обновляется сам, при запуске и когда " +
-                        "добыча звука ломается.", "версия yt-dlp" to (Engine.version ?: tr("встроенный"))),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                TextButton(onClick = ::updateEngine, enabled = !busy) {
-                    Text(tr("Проверить обновление"))
-                }
-                Notice(status, MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-
-            Section(tr("Журнал")) {
-                // Ник Telegram в пояснении — ссылка (LinkHint)
-                LinkHint(tr("Все логи. В случае какого-либо сбоя отправьте логи @keyno21"))
-                TextButton(onClick = ::sendLog) { Text(tr("Отправить логи")) }
-            }
             Spacer(Modifier.height(12.dp))
         }
+    }
+
+    /** «Назад» в настройках: из группы — к списку групп, из списка — вон. */
+    private fun settingsBack() {
+        if (settingsGroup != null) settingsGroup = null else settingsOpen = false
     }
 
     /**

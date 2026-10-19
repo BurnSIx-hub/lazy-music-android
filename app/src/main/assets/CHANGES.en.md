@@ -4,6 +4,10 @@ English version of CHANGES.md: the "What's new?" card shows it when the app
 is in English. Same versions, same order; a version missing here falls back
 to the Russian section.
 
+## 1.12.1
+
+- Organized the settings into groups
+
 ## 1.12.0
 
 - Added English localization
