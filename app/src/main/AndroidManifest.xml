@@ -21,12 +21,23 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
 
+        <!-- singleTask: ссылка из браузера приходит в уже открытое приложение,
+             а не второй его копией внутри браузера -->
         <activity
             android:name=".MainActivity"
-            android:exported="true">
+            android:exported="true"
+            android:launchMode="singleTask">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- lazymusic://play/<id>?t=…&a=… — со страницы-переходника (кнопка
+                 в Discord, «Поделиться»): трек открывается здесь, а не на YouTube -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="lazymusic" android:host="play" />
             </intent-filter>
         </activity>
 

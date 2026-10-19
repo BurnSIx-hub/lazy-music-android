@@ -59,8 +59,18 @@ data class Track(
         .build()
 
     companion object {
-        /** Ссылка на трек, чтобы поделиться: короткая, открывается и в приложении YouTube. Как на ПК. */
-        fun link(id: String) = "https://youtu.be/$id"
+        /** Страница-переходник: в Lazy Music, если стоит, иначе на YouTube. Та же, что у ПК. */
+        const val PAGE = "https://burnsix-hub.github.io/lazy-music-pc/play/"
+
+        /**
+         * Ссылка на трек, чтобы поделиться, — через переходник: у кого Lazy
+         * Music стоит, откроется в ней, нет — на YouTube. Название и
+         * исполнитель — чтобы страница показала трек без запросов.
+         */
+        fun link(track: Track): String {
+            fun enc(s: String) = java.net.URLEncoder.encode(s.take(80), "UTF-8").replace("+", "%20")
+            return "$PAGE?v=${track.id}&t=${enc(track.title)}&a=${enc(track.artist)}"
+        }
     }
 }
 

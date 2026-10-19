@@ -114,6 +114,9 @@ class MainActivity : ComponentActivity() {
      * с пустой строкой (жалоба пользователя 2026-10-18).
      */
     private var cameFrom by mutableStateOf<Tab?>(null)
+
+    /** Трек, пришедший ссылкой lazymusic:// с переходника, — играет, как подключится плеер. */
+    private var opening by mutableStateOf<Track?>(null)
     private var hintJob: kotlinx.coroutines.Job? = null
 
     // Прочее состояние экранов
@@ -162,7 +165,30 @@ class MainActivity : ComponentActivity() {
             // Как выглядит просьба войти: `--ez ask_login true`
             if (intent.getBooleanExtra("ask_login", false)) YtLogin.ask(this)
         }
+        // Поворот экрана пересоздаёт окно с тем же intent — трек не повторяем
+        if (savedInstanceState == null) takeLink(intent)
         setContent { LazyMusicTheme { Shell() } }
+    }
+
+    /** Ссылка пришла в уже открытое приложение (singleTask). */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        takeLink(intent)
+    }
+
+    /** `lazymusic://play/<id>?t=<название>&a=<исполнитель>` — как на ПК (links.rs). */
+    private fun takeLink(intent: Intent?) {
+        val uri = intent?.data ?: return
+        if (!uri.scheme.equals("lazymusic", ignoreCase = true) || uri.host != "play") return
+        val id = uri.pathSegments.firstOrNull()?.takeIf { VIDEO_ID.matches(it) } ?: return
+        opening = Track(
+            id = id,
+            title = uri.getQueryParameter("t").orEmpty().take(200).ifBlank { id },
+            artist = uri.getQueryParameter("a").orEmpty().take(200),
+            artworkUrl = Radio.thumbnailUrl(id)
+        )
+        Diag.i("ссылка: открыть $id")
     }
 
     override fun onStart() {
@@ -762,6 +788,15 @@ class MainActivity : ComponentActivity() {
 
         // Импорт из Яндекса положил находки в плейлист
         LaunchedEffect(YandexImport.changes) { if (YandexImport.changes > 0) revision++ }
+
+        // Трек по ссылке lazymusic:// — играем, как только плеер подключился
+        LaunchedEffect(host.connected, opening) {
+            val track = opening ?: return@LaunchedEffect
+            if (!host.connected) return@LaunchedEffect
+            opening = null
+            host.play(listOf(track), 0)
+            goNow()
+        }
         ImportMissingDialog()
 
         // Кэш мог пополниться, пока играли или качали
@@ -1110,3 +1145,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
+
+/** Идентификатор ролика YouTube — 11 знаков. */
+private val VIDEO_ID = Regex("[A-Za-z0-9_-]{11}")

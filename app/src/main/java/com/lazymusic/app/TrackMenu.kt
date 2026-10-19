@@ -150,7 +150,7 @@ fun TrackMenu(
             val context = LocalContext.current
             Item(Icons.Default.Share, "Поделиться", "Ссылка на трек в YouTube") {
                 val text = listOf(track.title, track.artist).filter { it.isNotBlank() }.joinToString(" — ") +
-                    "\n" + Track.link(track.id)
+                    "\n" + Track.link(track)
                 val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text)
                 runCatching { context.startActivity(Intent.createChooser(send, "Поделиться")) }
                 onDismiss()
