@@ -472,6 +472,7 @@ fun SearchScreen(
     hasKey: Boolean,
     onSearch: () -> Unit,
     onOpenPlaylist: () -> Unit,
+    onSpotifyExport: () -> Unit,
     onPlay: (Int) -> Unit,
     onTrackMenu: (Track) -> Unit
 ) {
@@ -561,6 +562,10 @@ fun SearchScreen(
                 ) {
                     if (opening) ButtonSpinner() else Text(tr("Открыть"))
                 }
+            }
+            // Длинные плейлисты и «Любимые треки» Spotify — из выгрузки данных
+            TextButton(onClick = { focus.clearFocus(); onSpotifyExport() }) {
+                Text(tr("Перенести из выгрузки Spotify"))
             }
         }
 

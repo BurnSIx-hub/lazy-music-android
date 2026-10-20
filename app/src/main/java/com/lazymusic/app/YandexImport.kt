@@ -174,22 +174,37 @@ object YandexImport {
             }
             // Встроенный плеер Spotify отдаёт не больше 100 треков — сказать сразу
             if (list.cut) Plaques.toast(tr("Spotify по ссылке отдаёт только первые {число} треков", "число" to Spotify.CAP))
-            val name = freeName(list.title, spotify = sp != null)
+            addLists(listOf(list), spotify = sp != null)
+        }
+        return true
+    }
+
+    /**
+     * Готовые списки → плейлисты и поиск на YouTube. Ссылка даёт один список,
+     * выгрузка данных Spotify — сколько отметил человек; ищутся по очереди.
+     */
+    fun importLists(lists: List<Yandex.Listing>, spotify: Boolean) {
+        scope.launch { addLists(lists, spotify) }
+    }
+
+    private suspend fun addLists(lists: List<Yandex.Listing>, spotify: Boolean) {
+        var id = System.currentTimeMillis()
+        for (list in lists) {
+            val name = freeName(list.title, spotify)
             Settings.createPlaylist(name)
             tasks += Task(
-                id = System.currentTimeMillis().toString(36),
+                id = (id++).toString(36),
                 title = list.title,
                 name = name,
                 at = System.currentTimeMillis(),
                 items = list.tracks.map { Item(it.artist, it.title, it.version, it.ms) }
             )
-            changes++
-            save()
             Log.i(TAG, "импорт «${list.title}»: ${list.tracks.size} треков → «$name»")
-            hidden = false
-            run()
         }
-        return true
+        changes++
+        save()
+        hidden = false
+        run()
     }
 
     /** Свободное имя плейлиста: «Мне нравится» уже есть — «Мне нравится (Яндекс)», «… (Spotify)». */

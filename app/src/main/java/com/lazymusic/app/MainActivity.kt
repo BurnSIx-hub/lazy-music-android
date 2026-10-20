@@ -12,6 +12,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import android.provider.OpenableColumns
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -126,6 +127,33 @@ class MainActivity : ComponentActivity() {
     /** Открытая группа настроек; null — список групп. */
     private var settingsGroup by mutableStateOf<SettingsGroup?>(null)
     private var eqOpen by mutableStateOf(false)
+
+    /** Перенос из выгрузки Spotify: окно «как получить» → выбор файла → «что перенести». */
+    private enum class ExportStep { HOW, CHOOSE }
+    private var exportStep by mutableStateOf<ExportStep?>(null)
+    private var exportLists by mutableStateOf(emptyList<Spotify.ExportList>())
+
+    private val pickExport = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@registerForActivityResult
+        lifecycleScope.launch {
+            // Имя файла — по нему JSON «Любимых треков» отличается от плейлистов
+            val name = runCatching {
+                contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
+                    ?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
+            }.getOrNull() ?: uri.lastPathSegment.orEmpty()
+            val lists = runCatching {
+                withContext(Dispatchers.IO) {
+                    contentResolver.openInputStream(uri)?.use { Spotify.readExport(it, name) }.orEmpty()
+                }
+            }.getOrElse { Plaques.toast(it.message ?: it::class.simpleName.orEmpty()); return@launch }
+            if (lists.isEmpty()) {
+                Plaques.toast(tr("В выгрузке нет плейлистов"))
+                return@launch
+            }
+            exportLists = lists
+            exportStep = ExportStep.CHOOSE
+        }
+    }
 
     /** Открытая страница исполнителя — поверх вкладки, «назад» к ней же. */
     private var artist by mutableStateOf<String?>(null)
@@ -747,6 +775,7 @@ class MainActivity : ComponentActivity() {
                     hasKey = Settings.hasApiKey,
                     onSearch = ::runSearch,
                     onOpenPlaylist = ::openLink,
+                    onSpotifyExport = { exportStep = ExportStep.HOW },
                     onPlay = { index -> host.play(results, index); goNow() },
                     onTrackMenu = { menuTrack = it }
                 )
@@ -790,6 +819,27 @@ class MainActivity : ComponentActivity() {
         }
 
         if (eqOpen) EqSheet(host) { eqOpen = false }
+
+        when (exportStep) {
+            ExportStep.HOW -> SpotifyExportHow(
+                onPick = {
+                    exportStep = null
+                    // Архив, JSON из него — или что угодно: менеджеры файлов подписывают ZIP по-разному
+                    pickExport.launch(arrayOf("application/zip", "application/json", "application/octet-stream", "*/*"))
+                },
+                onPage = { openInBrowser("https://www.spotify.com/account/privacy/") },
+                onDismiss = { exportStep = null }
+            )
+            ExportStep.CHOOSE -> SpotifyExportChoose(
+                lists = exportLists,
+                onImport = { picked ->
+                    exportStep = null
+                    YandexImport.importLists(picked.map { Yandex.Listing(it.title, it.tracks) }, spotify = true)
+                },
+                onDismiss = { exportStep = null }
+            )
+            null -> Unit
+        }
 
         // Понравившееся — обычный плейлист, и правят его не только сердцем:
         // галочкой в меню трека, ввозом, забором из YouTube Music. Любая

@@ -4,6 +4,10 @@ English version of CHANGES.md: the "What's new?" card shows it when the app
 is in English. Same versions, same order; a version missing here falls back
 to the Russian section.
 
+## 1.12.3
+
+- Added bringing over playlists from a Spotify data export. But it’s much more complicated. There’s a guide right in the app
+
 ## 1.12.2
 
 - Added importing playlists and albums from Spotify. Paste the “Share” link into “Search”, in the link field

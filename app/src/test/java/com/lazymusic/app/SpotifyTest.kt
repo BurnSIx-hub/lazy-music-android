@@ -7,6 +7,10 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 
 /**
  * Импорт из Spotify — те же образцы, что в `tools/import-selftest.mjs` на ПК.
@@ -72,5 +76,54 @@ class SpotifyTest {
         }
         assertEquals("Из короткой", list.title)
         assertEquals(2, asked.size)
+    }
+
+    // ── Выгрузка данных Spotify ──────────────────────────────────────────────
+
+    private val playlists = """{"playlists":[
+        {"name":"Дорога","lastModifiedDate":"2026-01-01","items":[
+          {"track":{"trackName":"Группа крови","artistName":"Кино","albumName":"Группа крови","trackUri":"spotify:track:1"},"episode":null,"localTrack":null},
+          {"track":null,"episode":{"episodeName":"Подкаст"},"localTrack":null},
+          {"track":{"trackName":"Du hast","artistName":"Rammstein","trackUri":"spotify:track:2"}}]},
+        {"name":"Пустой","items":[]}]}"""
+    private val library = """{"tracks":[{"artist":"Daft Punk","album":"RAM","track":"Get Lucky","uri":"spotify:track:3"}],"albums":[]}"""
+
+    private fun zip(files: Map<String, String>): ByteArray = ByteArrayOutputStream().also { out ->
+        ZipOutputStream(out).use { z ->
+            for ((name, text) in files) {
+                z.putNextEntry(ZipEntry(name))
+                z.write(text.toByteArray())
+                z.closeEntry()
+            }
+        }
+    }.toByteArray()
+
+    @Test
+    fun exportArchive() {
+        val lists = Spotify.readExport(ByteArrayInputStream(zip(mapOf(
+            "Spotify Account Data/Playlist1.json" to playlists,
+            "Spotify Account Data/YourLibrary.json" to library,
+            "Spotify Account Data/StreamingHistory_music_0.json" to "[]"
+        ))), "my_spotify_data.zip")
+        assertEquals("«Любимые треки» и непустой плейлист", 2, lists.size)
+        assertTrue(lists[0].liked)
+        assertEquals("Get Lucky", lists[0].tracks[0].title)
+        assertEquals("Daft Punk", lists[0].tracks[0].artist)
+        assertEquals("Дорога", lists[1].title)
+        assertEquals("эпизод пропущен", 2, lists[1].tracks.size)
+        assertEquals("Кино", lists[1].tracks[0].artist)
+    }
+
+    @Test
+    fun exportJson() {
+        val lists = Spotify.readExport(ByteArrayInputStream(playlists.toByteArray()), "Playlist1.json")
+        assertEquals(1, lists.size)
+        assertEquals("соседние имена полей (name, artist)", "Песня",
+            Spotify.exportLists("Playlist2.json", """{"playlists":[{"name":"X","items":[{"track":{"name":"Песня","artist":"Кто-то"}}]}]}""")[0].tracks[0].title)
+    }
+
+    @Test(expected = Spotify.Failure::class)
+    fun exportWrongZip() {
+        Spotify.readExport(ByteArrayInputStream(zip(mapOf("photo.jpg" to "x"))), "archive.zip")
     }
 }

@@ -1,6 +1,9 @@
 package com.lazymusic.app
 
+import org.json.JSONArray
 import org.json.JSONObject
+import java.io.InputStream
+import java.util.zip.ZipInputStream
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URI
@@ -136,5 +139,76 @@ object Spotify {
             }
         }
         throw last ?: IOException("Spotify не ответил")
+    }
+
+    // ── Выгрузка данных Spotify ──────────────────────────────────────────────
+    //
+    // Для длинных плейлистов и «Любимых треков»: на сайте Spotify «Аккаунт →
+    // Конфиденциальность → Скачать ваши данные», «Данные аккаунта». Через
+    // несколько дней на почту приходит архив my_spotify_data.zip, в нём JSON:
+    //   Playlist1.json (2, 3…) — { playlists: [{ name, items: [{ track:
+    //     { trackName, artistName, albumName, trackUri }, episode, localTrack }] }] };
+    //   YourLibrary.json — { tracks: [{ artist, album, track, uri }] } — «Любимые треки».
+    // Имена полей — по устройству выгрузки на 2026 год; разбор терпит и
+    // соседние варианты (name/track, artist/artistName): свой архив человек
+    // увидит только через несколько дней, угадать надо сразу. Тот же разбор,
+    // что `spotify.js` на ПК.
+
+    /** Список из выгрузки; [liked] — «Любимые треки»: идут в свой плейлист, а не в «Понравившуюся музыку». */
+    class ExportList(val title: String, val tracks: List<Yandex.Entry>, val liked: Boolean = false)
+
+    private val EXPORT_FILE = Regex("""(^|/)(Playlist\d*|YourLibrary)\.json$""", RegexOption.IGNORE_CASE)
+
+    /** Трек из выгрузки → то, что ищем на YouTube. Эпизоды и свои файлы — мимо. */
+    fun exportTrack(t: JSONObject?): Yandex.Entry? {
+        if (t == null) return null
+        val title = listOf("trackName", "track", "name").firstNotNullOfOrNull { k -> t.optString(k).takeIf { t.opt(k) is String && it.isNotBlank() } }
+            ?.trim() ?: return null
+        val artist = listOf("artistName", "artist").firstNotNullOfOrNull { k -> t.optString(k).takeIf { t.opt(k) is String && it.isNotBlank() } }
+            ?.trim().orEmpty()
+        return Yandex.Entry(artist = artist, title = title, version = "", ms = 0)
+    }
+
+    /** Списки из одного JSON выгрузки. */
+    fun exportLists(name: String, text: String): List<ExportList> {
+        val data = runCatching { JSONObject(text) }.getOrNull() ?: return emptyList()
+        val out = mutableListOf<ExportList>()
+        val playlists = data.optJSONArray("playlists") ?: JSONArray()
+        for (n in 0 until playlists.length()) {
+            val p = playlists.optJSONObject(n) ?: continue
+            val items = p.optJSONArray("items") ?: JSONArray()
+            val tracks = (0 until items.length()).mapNotNull { exportTrack(items.optJSONObject(it)?.optJSONObject("track")) }
+            if (tracks.isNotEmpty()) out += ExportList(p.optString("name").trim().ifEmpty { "Spotify" }, tracks)
+        }
+        val library = data.optJSONArray("tracks")
+        if (name.contains("YourLibrary", ignoreCase = true) && library != null) {
+            val tracks = (0 until library.length()).mapNotNull { exportTrack(library.optJSONObject(it)) }
+            if (tracks.isNotEmpty()) out.add(0, ExportList(tr("Любимые треки"), tracks, liked = true))
+        }
+        return out
+    }
+
+    /**
+     * Выбранный человеком файл — архив или JSON из него — → списки:
+     * «Любимые треки» первыми, плейлисты по порядку файлов. Блокирует.
+     */
+    fun readExport(input: InputStream, name: String): List<ExportList> {
+        val parts = mutableListOf<Pair<String, String>>()
+        val head = input.buffered().apply { mark(4) }
+        val sig = ByteArray(4).also { head.read(it); head.reset() }
+        if (sig[0] == 'P'.code.toByte() && sig[1] == 'K'.code.toByte()) {
+            ZipInputStream(head).use { zip ->
+                while (true) {
+                    val e = zip.nextEntry ?: break
+                    if (!e.isDirectory && EXPORT_FILE.containsMatchIn(e.name)) parts += e.name to zip.readBytes().toString(Charsets.UTF_8)
+                }
+            }
+            if (parts.isEmpty()) throw Failure(tr("Это не архив выгрузки Spotify"))
+        } else {
+            parts += name to head.use { it.readBytes().toString(Charsets.UTF_8) }
+        }
+        val num = Regex("""\d+""")
+        parts.sortBy { (n, _) -> num.find(n.substringAfterLast('/'))?.value?.toIntOrNull() ?: 0 }
+        return parts.flatMap { (n, t) -> exportLists(n, t) }.sortedByDescending { it.liked }
     }
 }
