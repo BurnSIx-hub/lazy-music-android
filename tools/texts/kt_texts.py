@@ -190,6 +190,8 @@ SKIP_TEXT = {
     ' и ', 'ремастер', 'версия', '{tracks.count { it.id in have }} из {число}',
     # название языка — на нём самом, не переводится
     'Русский',
+    # формы слов при числах в «Итогах года»: plural(n, …)
+    'минуту', 'минуты', 'минут', 'исполнителя', 'исполнителей', 'день', 'дня', 'дней', 'раз', 'раза',
 }
 NOISE = ('Log.', 'Diag.', 'throw ', 'IOException(', 'TrackUnavailable(', 'require(', 'check(',
          'Regex(', 'Diag.chain', 'diag', 'SimpleDateFormat', 'String.format', 'Locale(')

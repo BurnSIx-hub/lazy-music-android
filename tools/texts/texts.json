@@ -2882,6 +2882,550 @@
    ],
    "group": "17 Сообщения",
    "id": "A164"
+  },
+  {
+   "text": "Итоги {год}",
+   "places": [
+    {
+     "file": "WrappedScreen.kt",
+     "line": 228,
+     "start": 10345,
+     "raw": "\"Итоги {год}\"",
+     "text": "Итоги {год}",
+     "subs": [],
+     "multiline": false,
+     "where": "карточка на «Главной», заголовок; он же — заголовок последнего экрана",
+     "wrapped": true
+    },
+    {
+     "file": "WrappedScreen.kt",
+     "line": 424,
+     "start": 19135,
+     "raw": "\"Итоги {год}\"",
+     "text": "Итоги {год}",
+     "subs": [],
+     "multiline": false,
+     "where": "карточка на «Главной», заголовок; он же — заголовок последнего экрана",
+     "wrapped": true
+    }
+   ],
+   "group": "18 Итоги года",
+   "id": "W01"
+  },
+  {
+   "text": "Что и сколько вы слушали за год",
+   "places": [
+    {
+     "file": "WrappedScreen.kt",
+     "line": 233,
+     "start": 10576,
+     "raw": "\"Что и сколько вы слушали за год\"",
+     "text": "Что и сколько вы слушали за год",
+     "subs": [],
+     "multiline": false,
+     "where": "карточка на «Главной», строка под заголовком",
+     "wrapped": true
+    }
+   ],
+   "group": "18 Итоги года",
+   "id": "W02"
+  },
+  {
+   "text": "Итоги года",
+   "places": [
+    {
+     "file": "WrappedScreen.kt",
+     "line": 249,
+     "start": 11209,
+     "raw": "\"Итоги года\"",
+     "text": "Итоги года",
+     "subs": [],
+     "multiline": false,
+     "where": "экран 1, строка над крупным годом",
+     "wrapped": true
+    }
+   ],
+   "group": "18 Итоги года",
+   "id": "W03"
+  },
+  {
+   "text": "Посмотрим, что вы слушали",
+   "places": [
+    {
+     "file": "WrappedScreen.kt",
+     "line": 254,
+     "start": 11540,
+     "raw": "\"Посмотрим, что вы слушали\"",
+     "text": "Посмотрим, что вы слушали",
+     "subs": [],
+     "multiline": false,
+     "where": "экран 1, под годом и значком",
+     "wrapped": true
+    }
+   ],
+   "group": "18 Итоги года",
+   "id": "W04"
+  },
+  {
+   "text": "Нажмите справа или листайте",
+   "places": [
+    {
+     "file": "WrappedScreen.kt",
+     "line": 257,
+     "start": 11665,
+     "raw": "\"Нажмите справа или листайте\"",
+     "text": "Нажмите справа или листайте",
+     "subs": [],
+     "multiline": false,
+     "where": "экран 1, подсказка внизу",
+     "wrapped": true
+    }
+   ],
+   "group": "18 Итоги года",
+   "id": "W05"
+  },
+  {
+   "text": "В этом году вы слушали музыку",
+   "places": [
+    {
+     "file": "WrappedScreen.kt",
+     "line": 267,
+     "start": 12024,
+     "raw": "\"В этом году вы слушали музыку\"",
+     "text": "В этом году вы слушали музыку",
+     "subs": [],
+     "multiline": false,
+     "where": "экран 2, строка над числом минут",
+     "wrapped": true
+    }
+   ],
+   "group": "18 Итоги года",
+   "id": "W06"
+  },
+  {
+   "text": "{треков} от {исполнителей}",
+   "places": [
+    {
+     "file": "WrappedScreen.kt",
+     "line": 273,
+     "start": 12486,
+     "raw": "\"{треков} от {исполнителей}\"",
+     "text": "{треков} от {исполнителей}",
+     "subs": [],
+     "multiline": false,
+     "where": "экран 2, под минутами",
+     "wrapped": true
+    }
+   ],
+   "group": "18 Итоги года",
+   "id": "W07"
+  },
+  {
+   "text": "Подряд это {часов} ч",
+   "places": [
+    {
+     "file": "WrappedScreen.kt",
+     "line": 282,
+     "start": 12928,
+     "raw": "\"Подряд это {часов} ч\"",
+     "text": "Подряд это {часов} ч",
+     "subs": [],
+     "multiline": false,
+     "where": "экран 2, мелкая строка",
+     "wrapped": true
+    }
+   ],
+   "group": "18 Итоги года",
+   "id": "W08"
+  },
+  {
+   "text": "Ваши любимые треки",
+   "places": [
+    {
+     "file": "WrappedScreen.kt",
+     "line": 292,
+     "start": 13209,
+     "raw": "\"Ваши любимые треки\"",
+     "text": "Ваши любимые треки",
+     "subs": [],
+     "multiline": false,
+     "where": "экран 3, заголовок",
+     "wrapped": true
+    }
+   ],
+   "group": "18 Итоги года",
+   "id": "W09"
+  },
+  {
+   "text": "Исполнитель года",
+   "places": [
+    {
+     "file": "WrappedScreen.kt",
+     "line": 319,
+     "start": 14498,
+     "raw": "\"Исполнитель года\"",
+     "text": "Исполнитель года",
+     "subs": [],
+     "multiline": false,
+     "where": "экран 4, заголовок над фото",
+     "wrapped": true
+    }
+   ],
+   "group": "18 Итоги года",
+   "id": "W10"
+  },
+  {
+   "text": "{минут} мин музыки",
+   "places": [
+    {
+     "file": "WrappedScreen.kt",
+     "line": 332,
+     "start": 15032,
+     "raw": "\"{минут} мин музыки\"",
+     "text": "{минут} мин музыки",
+     "subs": [],
+     "multiline": false,
+     "where": "экран 4 — под именем главного исполнителя; экран 7 — под названием месяца",
+     "wrapped": true
+    },
+    {
+     "file": "WrappedScreen.kt",
+     "line": 411,
+     "start": 18564,
+     "raw": "\"{минут} мин музыки\"",
+     "text": "{минут} мин музыки",
+     "subs": [],
+     "multiline": false,
+     "where": "экран 4 — под именем главного исполнителя; экран 7 — под названием месяца",
+     "wrapped": true
+    }
+   ],
+   "group": "18 Итоги года",
+   "id": "W11"
+  },
+  {
+   "text": "{минут} мин",
+   "places": [
+    {
+     "file": "WrappedScreen.kt",
+     "line": 344,
+     "start": 15694,
+     "raw": "\"{минут} мин\"",
+     "text": "{минут} мин",
+     "subs": [],
+     "multiline": false,
+     "where": "экран 4, справа у исполнителей со 2-го по 5-й",
+     "wrapped": true
+    }
+   ],
+   "group": "18 Итоги года",
+   "id": "W12"
+  },
+  {
+   "text": "Музыка звучала",
+   "places": [
+    {
+     "file": "WrappedScreen.kt",
+     "line": 353,
+     "start": 15952,
+     "raw": "\"Музыка звучала\"",
+     "text": "Музыка звучала",
+     "subs": [],
+     "multiline": false,
+     "where": "экран 5, строка над числом дней",
+     "wrapped": true
+    }
+   ],
+   "group": "18 Итоги года",
+   "id": "W13"
+  },
+  {
+   "text": "из {дней}",
+   "places": [
+    {
+     "file": "WrappedScreen.kt",
+     "line": 364,
+     "start": 16486,
+     "raw": "\"из {дней}\"",
+     "text": "из {дней}",
+     "subs": [],
+     "multiline": false,
+     "where": "экран 5, под числом дней",
+     "wrapped": true
+    }
+   ],
+   "group": "18 Итоги года",
+   "id": "W14"
+  },
+  {
+   "text": "Самая длинная серия — {дней} подряд",
+   "places": [
+    {
+     "file": "WrappedScreen.kt",
+     "line": 373,
+     "start": 16892,
+     "raw": "\"Самая длинная серия — {дней} подряд\"",
+     "text": "Самая длинная серия — {дней} подряд",
+     "subs": [],
+     "multiline": false,
+     "where": "экран 5, под календарём",
+     "wrapped": true
+    }
+   ],
+   "group": "18 Итоги года",
+   "id": "W15"
+  },
+  {
+   "text": "Больше всего музыки было {дата} — {минут} мин",
+   "places": [
+    {
+     "file": "WrappedScreen.kt",
+     "line": 381,
+     "start": 17229,
+     "raw": "\"Больше всего музыки было {дата} — {минут} мин\"",
+     "text": "Больше всего музыки было {дата} — {минут} мин",
+     "subs": [],
+     "multiline": false,
+     "where": "экран 5, мелко внизу",
+     "wrapped": true
+    }
+   ],
+   "group": "18 Итоги года",
+   "id": "W16"
+  },
+  {
+   "text": "Чаще всего вы слушаете",
+   "places": [
+    {
+     "file": "WrappedScreen.kt",
+     "line": 392,
+     "start": 17628,
+     "raw": "\"Чаще всего вы слушаете\"",
+     "text": "Чаще всего вы слушаете",
+     "subs": [],
+     "multiline": false,
+     "where": "экран 6, строка над частью суток",
+     "wrapped": true
+    }
+   ],
+   "group": "18 Итоги года",
+   "id": "W17"
+  },
+  {
+   "text": "по ночам",
+   "places": [
+    {
+     "file": "Wrapped.kt",
+     "line": 31,
+     "start": 1121,
+     "raw": "\"по ночам\"",
+     "text": "по ночам",
+     "subs": [],
+     "multiline": false,
+     "where": "экран 6, крупно: с 0 до 6 часов",
+     "wrapped": true
+    }
+   ],
+   "group": "18 Итоги года",
+   "id": "W18"
+  },
+  {
+   "text": "по утрам",
+   "places": [
+    {
+     "file": "Wrapped.kt",
+     "line": 31,
+     "start": 1149,
+     "raw": "\"по утрам\"",
+     "text": "по утрам",
+     "subs": [],
+     "multiline": false,
+     "where": "экран 6, крупно: с 6 до 12",
+     "wrapped": true
+    }
+   ],
+   "group": "18 Итоги года",
+   "id": "W19"
+  },
+  {
+   "text": "днём",
+   "places": [
+    {
+     "file": "Wrapped.kt",
+     "line": 31,
+     "start": 1173,
+     "raw": "\"днём\"",
+     "text": "днём",
+     "subs": [],
+     "multiline": false,
+     "where": "экран 6, крупно: с 12 до 18",
+     "wrapped": true
+    }
+   ],
+   "group": "18 Итоги года",
+   "id": "W20"
+  },
+  {
+   "text": "по вечерам",
+   "places": [
+    {
+     "file": "Wrapped.kt",
+     "line": 31,
+     "start": 1197,
+     "raw": "\"по вечерам\"",
+     "text": "по вечерам",
+     "subs": [],
+     "multiline": false,
+     "where": "экран 6, крупно: с 18 до 24",
+     "wrapped": true
+    }
+   ],
+   "group": "18 Итоги года",
+   "id": "W21"
+  },
+  {
+   "text": "Самый музыкальный час — {час}",
+   "places": [
+    {
+     "file": "WrappedScreen.kt",
+     "line": 398,
+     "start": 18026,
+     "raw": "\"Самый музыкальный час — {час}\"",
+     "text": "Самый музыкальный час — {час}",
+     "subs": [],
+     "multiline": false,
+     "where": "экран 6, под графиком",
+     "wrapped": true
+    }
+   ],
+   "group": "18 Итоги года",
+   "id": "W22"
+  },
+  {
+   "text": "Самый музыкальный месяц",
+   "places": [
+    {
+     "file": "WrappedScreen.kt",
+     "line": 408,
+     "start": 18355,
+     "raw": "\"Самый музыкальный месяц\"",
+     "text": "Самый музыкальный месяц",
+     "subs": [],
+     "multiline": false,
+     "where": "экран 7, строка над названием месяца",
+     "wrapped": true
+    }
+   ],
+   "group": "18 Итоги года",
+   "id": "W23"
+  },
+  {
+   "text": "Исполнители",
+   "places": [
+    {
+     "file": "WrappedScreen.kt",
+     "line": 429,
+     "start": 19404,
+     "raw": "\"Исполнители\"",
+     "text": "Исполнители",
+     "subs": [],
+     "multiline": false,
+     "where": "экран 8, заголовок левой колонки",
+     "wrapped": true
+    }
+   ],
+   "group": "18 Итоги года",
+   "id": "W24"
+  },
+  {
+   "text": "Треки",
+   "places": [
+    {
+     "file": "WrappedScreen.kt",
+     "line": 431,
+     "start": 19536,
+     "raw": "\"Треки\"",
+     "text": "Треки",
+     "subs": [],
+     "multiline": false,
+     "where": "экран 8, заголовок правой колонки",
+     "wrapped": true
+    }
+   ],
+   "group": "18 Итоги года",
+   "id": "W25"
+  },
+  {
+   "text": "Минут",
+   "places": [
+    {
+     "file": "WrappedScreen.kt",
+     "line": 435,
+     "start": 19716,
+     "raw": "\"Минут\"",
+     "text": "Минут",
+     "subs": [],
+     "multiline": false,
+     "where": "экран 8, подпись над числом минут",
+     "wrapped": true
+    }
+   ],
+   "group": "18 Итоги года",
+   "id": "W26"
+  },
+  {
+   "text": "Дней с музыкой",
+   "places": [
+    {
+     "file": "WrappedScreen.kt",
+     "line": 437,
+     "start": 19828,
+     "raw": "\"Дней с музыкой\"",
+     "text": "Дней с музыкой",
+     "subs": [],
+     "multiline": false,
+     "where": "экран 8, подпись над числом дней",
+     "wrapped": true
+    }
+   ],
+   "group": "18 Итоги года",
+   "id": "W27"
+  },
+  {
+   "text": "Слушать любимое",
+   "places": [
+    {
+     "file": "WrappedScreen.kt",
+     "line": 448,
+     "start": 20386,
+     "raw": "\"Слушать любимое\"",
+     "text": "Слушать любимое",
+     "subs": [],
+     "multiline": false,
+     "where": "экран 8, большая кнопка внизу",
+     "wrapped": true
+    }
+   ],
+   "group": "18 Итоги года",
+   "id": "W28"
+  },
+  {
+   "text": "Итогов пока нет — послушайте что-нибудь",
+   "places": [
+    {
+     "file": "MainActivity.kt",
+     "line": 257,
+     "start": 11408,
+     "raw": "\"Итогов пока нет — послушайте что-нибудь\"",
+     "text": "Итогов пока нет — послушайте что-нибудь",
+     "subs": [],
+     "multiline": false,
+     "where": "телефон: всплывающее сообщение",
+     "wrapped": true
+    }
+   ],
+   "group": "18 Итоги года",
+   "id": "W30"
   }
  ]
 }

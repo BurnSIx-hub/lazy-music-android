@@ -65,6 +65,26 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.Velocity
+import androidx.compose.animation.core.animate
+import kotlin.math.roundToInt
 
 // ── Библиотека ───────────────────────────────────────────────────────────────
 
@@ -447,17 +467,24 @@ private fun PlaylistDetail(
 /**
  * Поиск и открытие чужого плейлиста по ссылке. Оба идут через ключ Data API:
  * поиск стоит 100 единиц квоты за запрос, страница плейлиста — одну.
+ *
+ * Шапка с полями уезжает вверх, когда листают находки, и выезжает, как
+ * только листают обратно, — как строка поиска в YouTube Music. Из двух
+ * полей видно одно, пока в нём что-то есть: искать и открывать ссылку
+ * одновременно незачем, а место под находки на телефоне дорого.
  */
 @Composable
 fun SearchScreen(
     query: String,
     onQueryChange: (String) -> Unit,
+    onClearQuery: () -> Unit,
     hints: List<String>,
     ownHints: List<Find.Hit>,
     onOwnHint: (Find.Hit) -> Unit,
     onUseHint: (String) -> Unit,
     playlistUrl: String,
     onPlaylistUrlChange: (String) -> Unit,
+    onClearLink: () -> Unit,
     busy: Boolean,
     searching: Boolean,
     opening: Boolean,
@@ -481,123 +508,62 @@ fun SearchScreen(
     // ни к чему, он лишь отодвигает находки
     var queryFocused by remember { mutableStateOf(false) }
 
-    Column(Modifier.fillMaxSize()) {
-        Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                OutlinedTextField(
-                    value = query,
-                    onValueChange = onQueryChange,
-                    label = { Text(tr("Поиск")) },
-                    singleLine = true,
-                    // Лупа на клавиатуре ищет так же, как кнопка рядом
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                    keyboardActions = KeyboardActions(
-                        onSearch = { focus.clearFocus(); onSearch() }
-                    ),
-                    modifier = Modifier
-                        .weight(1f)
-                        .onFocusChanged { queryFocused = it.isFocused }
-                )
-                Button(
-                    onClick = { focus.clearFocus(); onSearch() },
-                    enabled = !busy && hasKey && query.isNotBlank()
-                ) {
-                    // Кружок прямо в кнопке: отклик нужен там, куда смотрит палец
-                    if (searching) ButtonSpinner() else {
-                        Icon(Icons.Default.Search, contentDescription = tr("Найти"))
-                    }
+    // Какое из полей в деле: набрано в строке поиска — прячем ссылку, и наоборот
+    val showSearch = query.isNotBlank() || playlistUrl.isBlank()
+    val showLink = query.isBlank()
+
+    // Шапка поверх списка: сдвиг 0 — видна, минус её высота — уехала целиком.
+    // Список сдвиг не съедает, а листается вместе с ней: сверху шапка уходит
+    // ровно со строками под ней, будто она — часть списка
+    val list = rememberLazyListState()
+    // Высота — тоже с вкладкой: иначе по возвращении первый кадр без отступа
+    // под шапку, и список под ней съезжал бы
+    var headerPx by rememberSaveable { mutableIntStateOf(0) }
+    var shift by rememberSaveable { mutableFloatStateOf(0f) }
+    val hideOnScroll = remember {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                shift = (shift + available.y).coerceIn(-headerPx.toFloat(), 0f)
+                return Offset.Zero
+            }
+
+            // Отпустили палец на полпути — шапка доезжает, куда ближе, а не
+            // висит обрезанной. У самого верха не трогаем: там она едет
+            // вместе со строками, и доводка оставила бы пустую полосу
+            override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
+                val deep = list.firstVisibleItemIndex > 0 || list.firstVisibleItemScrollOffset > headerPx
+                if (deep && shift < 0f && shift > -headerPx) {
+                    val target = if (shift > -headerPx / 2f) 0f else -headerPx.toFloat()
+                    animate(shift, target) { v, _ -> shift = v }
                 }
-            }
-            // Подсказки прямо под строкой, а не всплывающим меню: оно на
-            // телефоне норовит закрыться от случайного касания.
-            //
-            // Высота ограничена нарочно. Клавиатура занимает низ экрана
-            // (на S23 её край примерно на 1125 из 2340), и список, выросший
-            // под неё, оказывается не просто некрасивым — нижние строки
-            // просто не нажать, касание уходит клавиатуре. Проверено.
-            if (queryFocused && (hints.isNotEmpty() || ownHints.isNotEmpty())) {
-                Spacer(Modifier.height(4.dp))
-                HintCard(
-                    own = ownHints,
-                    hints = hints,
-                    onOwn = { focus.clearFocus(); onOwnHint(it) },
-                    onHint = { focus.clearFocus(); onUseHint(it) }
-                )
-            }
-
-            // Подпись над полем, а не в его рамке: там на S23 помещается
-            // только «Ссылка на ролик или …», а в две строки она при наборе
-            // наезжает на рамку
-            Spacer(Modifier.height(18.dp))
-            Text(
-                tr("Ссылка на ролик или плейлист YouTube / Яндекс Музыки"),
-                // В одну строку на S23 не входит и мелким шрифтом — строки
-                // выравниваются по длине, без одинокого «Музыки» внизу
-                style = MaterialTheme.typography.bodyMedium.copy(lineBreak = LineBreak.Heading),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = 4.dp, bottom = 6.dp)
-            )
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                OutlinedTextField(
-                    value = playlistUrl,
-                    onValueChange = onPlaylistUrlChange,
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
-                    keyboardActions = KeyboardActions(
-                        onGo = { focus.clearFocus(); onOpenPlaylist() }
-                    ),
-                    modifier = Modifier.weight(1f)
-                )
-                // Ключ здесь не нужен: ссылку на ролик разбирает yt-dlp,
-                // а не Data API. Плейлист без ключа скажет об этом сам
-                Button(
-                    onClick = { focus.clearFocus(); onOpenPlaylist() },
-                    enabled = !busy && playlistUrl.isNotBlank()
-                ) {
-                    if (opening) ButtonSpinner() else Text(tr("Открыть"))
-                }
-            }
-            // Длинные плейлисты и «Любимые треки» Spotify — из выгрузки данных
-            TextButton(onClick = { focus.clearFocus(); onSpotifyExport() }) {
-                Text(tr("Перенести из выгрузки Spotify"))
+                return Velocity.Zero
             }
         }
+    }
+    // Новые находки — с начала и с шапкой на месте. По заголовку, а не по
+    // списку: «Показать ещё» дописывает в тот же список, и прыгать наверх не надо.
+    // Заголовок помнится вместе с вкладкой: вернулись с «Сейчас» к тем же
+    // находкам — место в списке остаётся, где нажали (2026-10-21 прыгало наверх)
+    var shownTitle by rememberSaveable { mutableStateOf(resultsTitle) }
+    LaunchedEffect(resultsTitle) {
+        if (resultsTitle == shownTitle) return@LaunchedEffect
+        shownTitle = resultsTitle
+        shift = 0f
+        list.scrollToItem(0)
+    }
+    val headerDp = with(LocalDensity.current) { headerPx.toDp() }
 
-        if (!hasKey) {
-            Notice(
-                tr("Без ключа API не работают поиск и плейлисты. Ссылка на ролик работает " +
-                    "и без него — вставьте её в поле выше. Ключ задаётся в настройках, " +
-                    "шестерёнка сверху."),
-                MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-
-        // Слот постоянной высоты: иначе при появлении полоски список под ней
-        // подпрыгивает, и кажется, что нажатие промахнулось
-        Box(Modifier.fillMaxWidth().height(3.dp)) {
-            if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-        }
-        Notice(
-            status,
-            if (busy) MaterialTheme.colorScheme.primary
-            else MaterialTheme.colorScheme.onSurfaceVariant
-        )
-
+    Box(Modifier.fillMaxSize().clipToBounds().nestedScroll(hideOnScroll)) {
         if (results.isEmpty()) {
-            EmptyHint(tr("Здесь появятся находки."))
+            Column(Modifier.padding(top = headerDp)) {
+                EmptyHint(tr("Здесь появятся находки."))
+            }
         } else {
-            Text(
-                resultsTitle,
-                style = MaterialTheme.typography.titleSmall,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-            )
-            LazyColumn(Modifier.fillMaxSize()) {
+            LazyColumn(
+                state = list,
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(top = headerDp, bottom = 12.dp)
+            ) {
                 itemsIndexed(results, key = { _, t -> t.id }) { index, track ->
                     TrackRow(
                         track = track,
@@ -623,9 +589,149 @@ fun SearchScreen(
                         }
                     }
                 }
-                item { Spacer(Modifier.height(12.dp)) }
             }
         }
+
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .offset { IntOffset(0, shift.roundToInt()) }
+                .onSizeChanged { headerPx = it.height }
+                .background(MaterialTheme.colorScheme.surface)
+        ) {
+            Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                AnimatedVisibility(visible = showSearch, enter = expandVertically(), exit = shrinkVertically()) {
+                    Column {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            OutlinedTextField(
+                                value = query,
+                                onValueChange = onQueryChange,
+                                label = { Text(tr("Поиск")) },
+                                singleLine = true,
+                                trailingIcon = { ClearButton(query) { focus.clearFocus(); onClearQuery() } },
+                                // Лупа на клавиатуре ищет так же, как кнопка рядом
+                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                                keyboardActions = KeyboardActions(
+                                    onSearch = { focus.clearFocus(); onSearch() }
+                                ),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .onFocusChanged { queryFocused = it.isFocused }
+                            )
+                            Button(
+                                onClick = { focus.clearFocus(); onSearch() },
+                                enabled = !busy && hasKey && query.isNotBlank()
+                            ) {
+                                // Кружок прямо в кнопке: отклик нужен там, куда смотрит палец
+                                if (searching) ButtonSpinner() else {
+                                    Icon(Icons.Default.Search, contentDescription = tr("Найти"))
+                                }
+                            }
+                        }
+                        // Подсказки прямо под строкой, а не всплывающим меню: оно на
+                        // телефоне норовит закрыться от случайного касания.
+                        //
+                        // Высота ограничена нарочно. Клавиатура занимает низ экрана
+                        // (на S23 её край примерно на 1125 из 2340), и список, выросший
+                        // под неё, оказывается не просто некрасивым — нижние строки
+                        // просто не нажать, касание уходит клавиатуре. Проверено.
+                        if (queryFocused && (hints.isNotEmpty() || ownHints.isNotEmpty())) {
+                            Spacer(Modifier.height(4.dp))
+                            HintCard(
+                                own = ownHints,
+                                hints = hints,
+                                onOwn = { focus.clearFocus(); onOwnHint(it) },
+                                onHint = { focus.clearFocus(); onUseHint(it) }
+                            )
+                        }
+                        if (showLink) Spacer(Modifier.height(18.dp))
+                    }
+                }
+
+                AnimatedVisibility(visible = showLink, enter = expandVertically(), exit = shrinkVertically()) {
+                    Column {
+                        // Подпись над полем, а не в его рамке: там на S23 помещается
+                        // только «Ссылка на ролик или …», а в две строки она при наборе
+                        // наезжает на рамку
+                        Text(
+                            tr("Ссылка на ролик или плейлист YouTube / Яндекс Музыки"),
+                            // В одну строку на S23 не входит и мелким шрифтом — строки
+                            // выравниваются по длине, без одинокого «Музыки» внизу
+                            style = MaterialTheme.typography.bodyMedium.copy(lineBreak = LineBreak.Heading),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(start = 4.dp, bottom = 6.dp)
+                        )
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            OutlinedTextField(
+                                value = playlistUrl,
+                                onValueChange = onPlaylistUrlChange,
+                                singleLine = true,
+                                trailingIcon = { ClearButton(playlistUrl) { focus.clearFocus(); onClearLink() } },
+                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
+                                keyboardActions = KeyboardActions(
+                                    onGo = { focus.clearFocus(); onOpenPlaylist() }
+                                ),
+                                modifier = Modifier.weight(1f)
+                            )
+                            // Ключ здесь не нужен: ссылку на ролик разбирает yt-dlp,
+                            // а не Data API. Плейлист без ключа скажет об этом сам
+                            Button(
+                                onClick = { focus.clearFocus(); onOpenPlaylist() },
+                                enabled = !busy && playlistUrl.isNotBlank()
+                            ) {
+                                if (opening) ButtonSpinner() else Text(tr("Открыть"))
+                            }
+                        }
+                        // Длинные плейлисты и «Любимые треки» Spotify — из выгрузки данных
+                        TextButton(onClick = { focus.clearFocus(); onSpotifyExport() }) {
+                            Text(tr("Перенести из выгрузки Spotify"))
+                        }
+                    }
+                }
+            }
+
+            if (!hasKey) {
+                Notice(
+                    tr("Без ключа API не работают поиск и плейлисты. Ссылка на ролик работает " +
+                        "и без него — вставьте её в поле выше. Ключ задаётся в настройках, " +
+                        "шестерёнка сверху."),
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            // Слот постоянной высоты: иначе при появлении полоски список под ней
+            // подпрыгивает, и кажется, что нажатие промахнулось
+            Box(Modifier.fillMaxWidth().height(3.dp)) {
+                if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
+            }
+            Notice(
+                status,
+                if (busy) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            if (results.isNotEmpty()) {
+                Text(
+                    resultsTitle,
+                    style = MaterialTheme.typography.titleSmall,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                )
+            }
+        }
+    }
+}
+
+/** Крестик в поле: стереть набранное. Пустое поле — без крестика. */
+@Composable
+private fun ClearButton(value: String, onClear: () -> Unit) {
+    if (value.isEmpty()) return
+    IconButton(onClick = onClear) {
+        Icon(Icons.Default.Close, contentDescription = tr("Очистить"))
     }
 }
 

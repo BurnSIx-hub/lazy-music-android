@@ -74,7 +74,9 @@ fun HomeScreen(
     ownHints: List<Find.Hit>,
     onOwnHint: (Find.Hit) -> Unit,
     onUseHint: (String) -> Unit,
-    onSearch: () -> Unit
+    onSearch: () -> Unit,
+    wrapped: Wrapped.Summary?,
+    onWrapped: () -> Unit
 ) {
     // Строка поиска сверху — как на ПК: ищет на вкладке «Поиск»
     val search: @Composable () -> Unit = {
@@ -97,6 +99,11 @@ fun HomeScreen(
     LazyColumn(Modifier.fillMaxSize()) {
         item {
             search()
+            // «Итоги года» — в декабре и январе, над всем остальным
+            if (wrapped != null) {
+                Spacer(Modifier.height(4.dp))
+                WrappedCard(wrapped, onWrapped)
+            }
             Text(
                 text = if (lastIsCurrent && playing) tr("Сейчас играет") else tr("Продолжить"),
                 style = MaterialTheme.typography.titleMedium,

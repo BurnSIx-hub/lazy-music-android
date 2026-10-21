@@ -4,6 +4,12 @@ English version of CHANGES.md: the "What's new?" card shows it when the app
 is in English. Same versions, same order; a version missing here falls back
 to the Russian section.
 
+## 1.12.4
+
+- Buttons on the “Now” screen are now in one row under the title, like in YouTube Music. Added “Share” there
+- Changed how the search fields behave
+- Fixed a bug: after opening a found track and going back to search, the list jumped to the top
+
 ## 1.12.3
 
 - Added bringing over playlists from a Spotify data export. But it’s much more complicated. There’s a guide right in the app

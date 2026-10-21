@@ -101,6 +101,13 @@ class MainActivity : ComponentActivity() {
     /** Какая именно работа идёт — чтобы кружок крутился в нужной кнопке. */
     private var job by mutableStateOf<Job?>(null)
 
+    /**
+     * Откуда находки на «Поиске»: из строки поиска или по ссылке. Крестик в
+     * поле убирает свои находки, а чужие — нет.
+     */
+    private enum class Found { SEARCH, LINK }
+    private var found: Found? = null
+
     /** Закладка на следующую страницу находок. Пусто — страница последняя. */
     private var searchPage by mutableStateOf<String?>(null)
 
@@ -132,6 +139,17 @@ class MainActivity : ComponentActivity() {
     private enum class ExportStep { HOW, CHOOSE }
     private var exportStep by mutableStateOf<ExportStep?>(null)
     private var exportLists by mutableStateOf(emptyList<Spotify.ExportList>())
+
+    /** «Итоги года»: карточка на «Главной» — в декабре и январе — и открытый экран. */
+    private var wrappedCard by mutableStateOf<Wrapped.Summary?>(null)
+    private var wrappedOpen by mutableStateOf<Wrapped.Summary?>(null)
+
+    /**
+     * Итоги до сезона — посмотреть экраны: `am start … --ez wrapped true` —
+     * по своим прослушиваниям, `--ez wrapped_demo true` — по выдуманному
+     * году из треков библиотеки. Карточка тогда видна до закрытия приложения.
+     */
+    private var wrappedPreview: String? = null
 
     private val pickExport = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) return@registerForActivityResult
@@ -203,7 +221,10 @@ class MainActivity : ComponentActivity() {
             if (intent.getBooleanExtra("ask_login", false)) YtLogin.ask(this)
         }
         // Поворот экрана пересоздаёт окно с тем же intent — трек не повторяем
-        if (savedInstanceState == null) takeLink(intent)
+        if (savedInstanceState == null) {
+            takeLink(intent)
+            takeWrapped(intent)
+        }
         setContent { LazyMusicTheme { Shell() } }
     }
 
@@ -212,6 +233,37 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         takeLink(intent)
+        takeWrapped(intent)
+    }
+
+    private fun takeWrapped(intent: Intent?) {
+        wrappedPreview = when {
+            intent?.getBooleanExtra("wrapped_demo", false) == true -> "demo"
+            intent?.getBooleanExtra("wrapped", false) == true -> "real"
+            else -> return
+        }
+        refreshWrapped(open = true)
+    }
+
+    /** Пересчитать итоги для карточки; [open] — сразу и открыть. */
+    private fun refreshWrapped(open: Boolean = false) {
+        val preview = wrappedPreview
+        lifecycleScope.launch {
+            val s = withContext(Dispatchers.Default) {
+                runCatching {
+                    when (preview) {
+                        "demo" -> Wrapped.demo(Settings.playlistNames().flatMap { Settings.playlist(it) })
+                        "real" -> Wrapped.of(this@MainActivity, java.time.LocalDate.now().year)
+                        else -> Wrapped.ready(this@MainActivity)
+                    }
+                }.onFailure { Diag.w("итоги года не посчитались: ${Diag.chain(it)}") }.getOrNull()
+            }
+            wrappedCard = s
+            if (open) {
+                if (s != null) wrappedOpen = s
+                else Plaques.toast(tr("Итогов пока нет — послушайте что-нибудь"))
+            }
+        }
     }
 
     /** `lazymusic://play/<id>?t=<название>&a=<исполнитель>` — как на ПК (links.rs). */
@@ -233,6 +285,7 @@ class MainActivity : ComponentActivity() {
         host.connect()
         refreshCache()
         recent = Settings.recentTracks()
+        refreshWrapped()
         // Подборка собирается полминуты, поэтому только когда протухла
         Recommend.refreshIfStale(this)
         // Свежий yt-dlp: сам процесс живёт сутками, так что «при запуске»
@@ -472,8 +525,29 @@ class MainActivity : ComponentActivity() {
             if (found.tracks.isEmpty()) error(tr("ничего не нашлось"))
             results = found.tracks
             resultsTitle = tr("Поиск: {запрос}", "запрос" to q)
+            this@MainActivity.found = Found.SEARCH
             searchPage = found.nextPage
             tr("найдено: {число}", "число" to found.tracks.size)
+        }
+    }
+
+    /**
+     * Крестик в поле «Поиска»: стереть набранное, а с ним и находки этого
+     * поля — поиск закончен, и снова видны оба поля.
+     */
+    private fun clearField(kind: Found) {
+        if (kind == Found.SEARCH) {
+            query = ""
+            dropHints()
+        } else {
+            playlistUrl = ""
+        }
+        if (found == kind && !busy) {
+            results = emptyList()
+            resultsTitle = ""
+            searchPage = null
+            status = null
+            found = null
         }
     }
 
@@ -523,6 +597,7 @@ class MainActivity : ComponentActivity() {
                 if (loaded.isEmpty()) error(tr("в плейлисте нет доступных треков"))
                 results = loaded
                 resultsTitle = YouTubeApi.playlistTitle(playlistId) ?: tr("Плейлист")
+                found = Found.LINK
                 tr("загружено: {число}", "число" to loaded.size)
             }
             return
@@ -533,6 +608,7 @@ class MainActivity : ComponentActivity() {
                 val track = Links.track(this@MainActivity, videoId)
                 results = listOf(track)
                 resultsTitle = tr("По ссылке")
+                found = Found.LINK
                 host.play(listOf(track), 0)
                 goNow()
                 tr("играю: {название трека}", "название трека" to track.title)
@@ -723,7 +799,9 @@ class MainActivity : ComponentActivity() {
                     ownHints = ownHints,
                     onOwnHint = ::playOwn,
                     onUseHint = { query = it; dropHints(); searchFromHome() },
-                    onSearch = ::searchFromHome
+                    onSearch = ::searchFromHome,
+                    wrapped = wrappedCard,
+                    onWrapped = { wrappedOpen = wrappedCard }
                 )
 
                 Tab.NOW -> NowPlayingScreen(
@@ -755,12 +833,14 @@ class MainActivity : ComponentActivity() {
                 Tab.SEARCH -> SearchScreen(
                     query = query,
                     onQueryChange = ::onQueryChanged,
+                    onClearQuery = { clearField(Found.SEARCH) },
                     hints = hints,
                     ownHints = ownHints,
                     onOwnHint = ::playOwn,
                     onUseHint = ::useHint,
                     playlistUrl = playlistUrl,
                     onPlaylistUrlChange = { playlistUrl = it },
+                    onClearLink = { clearField(Found.LINK) },
                     busy = busy,
                     searching = job == Job.SEARCH,
                     opening = job == Job.PLAYLIST,
@@ -819,6 +899,14 @@ class MainActivity : ComponentActivity() {
         }
 
         if (eqOpen) EqSheet(host) { eqOpen = false }
+
+        wrappedOpen?.let { s ->
+            WrappedScreen(
+                s,
+                onPlay = { list -> wrappedOpen = null; host.play(list, 0); goNow() },
+                onClose = { wrappedOpen = null }
+            )
+        }
 
         when (exportStep) {
             ExportStep.HOW -> SpotifyExportHow(

@@ -50,6 +50,17 @@ import androidx.compose.ui.unit.dp
 import androidx.media3.common.util.UnstableApi
 
 /**
+ * Ссылка на ролик — через «Поделиться» системы: в Telegram, сообщением,
+ * куда угодно. Из меню трека и со строки кнопок на «Сейчас».
+ */
+fun shareTrack(context: android.content.Context, track: Track) {
+    val text = listOf(track.title, track.artist).filter { it.isNotBlank() }.joinToString(" — ") +
+        "\n" + Track.link(track)
+    val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text)
+    runCatching { context.startActivity(Intent.createChooser(send, tr("Поделиться"))) }
+}
+
+/**
  * Меню трека — шторка снизу, а не окно поверх всего, как на ПК: те же
  * пункты, раскладка по плейлистам галочками — за один заход можно и
  * добавить в один список, и убрать из другого.
@@ -149,10 +160,7 @@ fun TrackMenu(
             // Ссылка на ролик — через «Поделиться»: в Telegram, сообщением, куда угодно
             val context = LocalContext.current
             Item(Icons.Default.Share, tr("Поделиться"), tr("Ссылка на трек в YouTube")) {
-                val text = listOf(track.title, track.artist).filter { it.isNotBlank() }.joinToString(" — ") +
-                    "\n" + Track.link(track)
-                val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text)
-                runCatching { context.startActivity(Intent.createChooser(send, tr("Поделиться"))) }
+                shareTrack(context, track)
                 onDismiss()
             }
 

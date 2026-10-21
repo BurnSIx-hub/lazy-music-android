@@ -68,6 +68,8 @@ object Hub {
     private var pending: Job? = null
     private var ticker: Job? = null
     @Volatile private var lastRediscover = 0L
+    /** Какую ревизию своих прослушиваний компьютер уже получил; -1 — никакую. */
+    @Volatile private var sentListening = -1L
 
     var busy by mutableStateOf(false); private set
     var note by mutableStateOf<String?>(null); private set
@@ -212,12 +214,19 @@ object Hub {
                     .put("device", device())
                     .put("applied", Settings.hubApplied)
                     .put("library", Settings.libraryForSync())
+                // Прослушивания — для общих «Итогов года»: свои, если
+                // прибавилось, и отпечаток уже присланных компьютером
+                val listened = Listening.revision
+                if (listened != sentListening) body.put("listening", Listening.own(App.instance))
+                body.put("listeningTag", Listening.othersTag(App.instance))
                 val (status, json) = post(body) ?: run {
                     if (reason == MANUAL) note = tr("Компьютер не отвечает — он включён и в той же сети Wi-Fi?")
                     return false
                 }
                 when (status) {
                     200 -> {
+                        if (body.has("listening")) sentListening = listened
+                        json?.optJSONObject("listening")?.let { Listening.setOthers(App.instance, it) }
                         if (Settings.libraryRevision != revision) return@repeat
                         val lib = json?.optJSONObject("library") ?: return false
                         val changed = Settings.replaceLibrary(lib)
