@@ -37,12 +37,16 @@ object Lyrics {
     /**
      * Текст. [synced] — строки размечены по времени и совпали с треком;
      * [instrumental] — база знает песню и говорит, что слов в ней нет.
+     * [artist] и [title] — как песня записана в LRCLIB: по ним можно
+     * поискать ещё раз, уже с исполнителем.
      */
     data class Found(
         val lines: List<Line>,
         val synced: Boolean,
         val source: String,
-        val instrumental: Boolean = false
+        val instrumental: Boolean = false,
+        val artist: String = "",
+        val title: String = ""
     )
 
     private const val UA = "LazyMusic (https://github.com/BurnSIx-hub/lazy-music-android)"
@@ -76,7 +80,24 @@ object Lyrics {
         val lr = async { runCatching { lrclib(track.title, track.artist, durationS) }.getOrNull() }
         val yt = async { runCatching { youtube(track.id) }.getOrNull() }
         val fromBase = lr.await()
-        fromBase?.takeIf { it.synced || it.instrumental } ?: yt.await() ?: fromBase
+        val fromYt = yt.await()
+        when {
+            // База говорит «без слов», а у YouTube Music текст есть — верим тексту
+            fromBase?.instrumental == true -> fromYt ?: fromBase
+            // Разметка — только если это та же песня: без исполнителя легко
+            // попасть на чужую с тем же названием, а текст YouTube Music — точно от ролика
+            fromBase?.synced == true && (fromYt == null || agree(fromBase, fromYt)) -> fromBase
+            else -> fromYt ?: fromBase
+        }
+    }
+
+    /** Два текста об одной песне: хотя бы треть строк совпадает. */
+    internal fun agree(a: Found, b: Found): Boolean {
+        fun lines(f: Found) = f.lines.map { norm(it.text) }.filter { it.length >= 4 }.toSet()
+        val x = lines(a)
+        val y = lines(b)
+        if (x.isEmpty() || y.isEmpty()) return true
+        return x.intersect(y).size * 3 >= minOf(x.size, y.size)
     }
 
     // ── Разбор названия ──────────────────────────────────────────────────────
@@ -114,8 +135,16 @@ object Lyrics {
             }
         }
         if (t.isNotEmpty()) out += artist to t
+        // Название в кавычках — «…EDテーマ「Memento」MV(full size)»: исполнителя
+        // в названии нет, ищем по одному названию. Последнее в кавычках —
+        // обычно сама песня, раньше — аниме или альбом
+        QUOTED.findAll(plainText(title)).map { m -> m.groupValues.drop(1).first { it.isNotEmpty() } }
+            .map(::cleanTitle).filter { it.isNotEmpty() }.toList().asReversed()
+            .forEach { out += "" to it }
         return out.distinct()
     }
+
+    private val QUOTED = Regex("""「([^」]+)」|『([^』]+)』|«([^»]+)»|"([^"]+)"|“([^”]+)”""")
 
     private fun norm(s: String) = s.lowercase().filter { it.isLetterOrDigit() }
 
@@ -162,30 +191,48 @@ object Lyrics {
         if (fit.isEmpty()) return null
         fun gap(c: JSONObject) = if (durationS > 0) abs(c.optDouble("duration", 0.0) - durationS) else Double.MAX_VALUE
         val close = fit.filter { gap(it) <= SLACK_S }
+        fun found(c: JSONObject, lines: List<Line>, synced: Boolean, instrumental: Boolean = false) =
+            Found(lines, synced, "LRCLIB", instrumental, c.optString("artistName"), c.optString("trackName"))
         close.firstOrNull { it.optBoolean("instrumental") }?.let {
-            return Found(emptyList(), synced = false, source = "LRCLIB", instrumental = true)
+            return found(it, emptyList(), synced = false, instrumental = true)
         }
         close.filter { it.optString("syncedLyrics").isNotBlank() }.minByOrNull(::gap)?.let { c ->
             val lines = parseLrc(c.optString("syncedLyrics"))
-            if (lines.isNotEmpty()) return Found(lines, synced = true, source = "LRCLIB")
+            if (lines.isNotEmpty()) return found(c, lines, synced = true)
         }
         val plain = fit.filter { it.optString("plainLyrics").isNotBlank() || it.optString("syncedLyrics").isNotBlank() }
             .minByOrNull(::gap) ?: return null
         val text = plain.optString("plainLyrics").ifBlank {
             parseLrc(plain.optString("syncedLyrics")).joinToString("\n") { it.text }
         }
-        return Found(text.trim().lines().map { Line(null, it.trim()) }, synced = false, source = "LRCLIB")
+        return found(plain, text.trim().lines().map { Line(null, it.trim()) }, synced = false)
     }
 
+    /**
+     * Догадки по очереди: размеченный текст — сразу, простой — про запас,
+     * вдруг следующая догадка найдёт с разметкой.
+     */
     private fun lrclib(title: String, channel: String, durationS: Double): Found? {
-        for ((artist, name) in guesses(title, channel)) {
+        val tries = guesses(title, channel)
+        var spare: Found? = null
+        for ((artist, name) in tries) {
             val q = "track_name=${enc(name)}" + if (artist.isNotEmpty()) "&artist_name=${enc(artist)}" else ""
-            val list = getArray("https://lrclib.net/api/search?$q")
-            pick(list, name, durationS)?.let { return it }
+            val got = pick(getArray("https://lrclib.net/api/search?$q"), name, durationS) ?: continue
+            if (got.synced || got.instrumental) return got
+            if (spare == null) spare = got
+        }
+        // Нашлось только простым текстом, а исполнителя мы не знали — теперь
+        // знаем из базы: ищем ещё раз с ним, среди его версий может быть
+        // размеченная нужной длины. Чужого исполнителя отсеет сверка с YouTube Music
+        spare?.takeIf { s -> s.artist.isNotBlank() && tries.none { norm(it.first) == norm(s.artist) } }?.let { s ->
+            val q = "track_name=${enc(s.title)}&artist_name=${enc(s.artist)}"
+            val got = pick(getArray("https://lrclib.net/api/search?$q"), s.title, durationS)
+            if (got != null && (got.synced || got.instrumental)) return got
         }
         // Ни по одной догадке — свободным запросом, как в строке поиска
-        val (artist, name) = guesses(title, channel).lastOrNull() ?: return null
-        return pick(getArray("https://lrclib.net/api/search?q=${enc("$artist $name".trim())}"), name, durationS)
+        val (artist, name) = tries.firstOrNull { it.first.isNotEmpty() } ?: tries.firstOrNull() ?: return spare
+        val got = pick(getArray("https://lrclib.net/api/search?q=${enc("$artist $name".trim())}"), name, durationS)
+        return if (got != null && (got.synced || got.instrumental)) got else spare ?: got
     }
 
     // ── YouTube Music ────────────────────────────────────────────────────────

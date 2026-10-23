@@ -181,6 +181,13 @@ private fun Plain(found: Lyrics.Found) {
             found.lines.joinToString("\n") { it.text },
             style = MaterialTheme.typography.bodyLarge.copy(fontSize = 17.sp, lineHeight = 27.sp)
         )
+        // Чтобы не казалось, что подсветка сломалась
+        Text(
+            tr("Текст без разметки по времени"),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 4.dp)
+        )
         Source(found.source)
         Spacer(Modifier.height(48.dp))
     }

@@ -33,6 +33,18 @@ class LyricsTest {
         assertEquals("Some Channel" to "Depeche Mode - People Are People", g[2])
         // Без тире — исполнитель из канала
         assertEquals(listOf("Band" to "Song"), Lyrics.guesses("Song (Official Audio)", "Band - Topic"))
+        // Название песни в кавычках, исполнителя нет: последнее в кавычках — первым
+        val q = Lyrics.guesses("Аниме「Сериал」2nd season ED「Песня」MV(full size)", "Studio")
+        assertEquals("" to "Песня", q[1])
+        assertEquals("" to "Сериал", q[2])
+    }
+
+    @Test
+    fun agreesOnSameSong() {
+        fun f(vararg l: String) = Lyrics.Found(l.map { Lyrics.Line(null, it) }, synced = false, source = "")
+        val a = f("Первая выдуманная строка", "Вторая выдуманная строка", "Третья строка песни")
+        assertTrue(Lyrics.agree(a, f("первая выдуманная строка!", "Совсем другая", "Ещё одна другая")))
+        assertFalse(Lyrics.agree(a, f("Чужая песня раз", "Чужая песня два", "Чужая песня три")))
     }
 
     @Test

@@ -4,6 +4,10 @@ English version of CHANGES.md: the "What's new?" card shows it when the app
 is in English. Same versions, same order; a version missing here falls back
 to the Russian section.
 
+## 1.12.6
+
+- Lyrics with line highlighting are now found more often, for example for music videos with the song title in quotes
+
 ## 1.12.5
 
 - Added viewing song lyrics. New “Lyrics” button on the now-playing screen
