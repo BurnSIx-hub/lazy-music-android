@@ -20,6 +20,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.DownloadDone
+import androidx.compose.material.icons.filled.FormatQuote
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PlaylistAdd
@@ -93,6 +94,9 @@ fun NowPlayingScreen(
 
     // Пока тянем ползунок, показываем своё значение, а не то, что у плеера
     var dragging by remember { mutableStateOf(false) }
+    // Шторка с текстом песни — по кнопке «Текст»
+    var lyricsOpen by remember { mutableStateOf(false) }
+    if (lyricsOpen) LyricsSheet(host) { lyricsOpen = false }
     var dragValue by remember { mutableStateOf(0f) }
 
     LazyColumn(
@@ -145,7 +149,7 @@ fun NowPlayingScreen(
             Spacer(Modifier.height(16.dp))
             // Под названием и строкой, которая листается вбок, — как в YouTube
             // Music: кнопок
-            // четыре, в ширину телефона они не входят. Последняя уходит за
+            // пять, в ширину телефона они не входят. Последняя уходит за
             // край — видно, что дальше есть ещё. Отступы — внутри прокрутки,
             // чтобы крайние кнопки доезжали до того же края, что и всё остальное
             val context = LocalContext.current
@@ -156,6 +160,11 @@ fun NowPlayingScreen(
                     .padding(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                // Первой, как в YouTube Music: текст открывают чаще остального
+                ActionPill(text = tr("Текст"), onClick = { lyricsOpen = true }) {
+                    Icon(Icons.Default.FormatQuote, contentDescription = null)
+                }
+
                 ActionPill(
                     text = when {
                         gathering -> tr("Собираю…")
