@@ -6,6 +6,7 @@
     <!-- Фоновое проигрывание с уведомлением -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <!-- Обновление с GitHub: APK ставит системный установщик, с согласия человека -->
@@ -60,6 +61,13 @@
                 <action android:name="androidx.media3.session.MediaSessionService" />
             </intent-filter>
         </service>
+
+        <!-- Скачивание при свёрнутом приложении: держит процесс, пока есть
+             что качать, и снимается сама (DownloadService) -->
+        <service
+            android:name=".DownloadService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
 
         <!-- Ответ установщика при обновлении: окно подтверждения или отказ -->
         <receiver

@@ -42,6 +42,11 @@ object Downloads {
     var version by mutableIntStateOf(0)
         private set
 
+    /** Названия того, что качается, — для уведомления [DownloadService]. */
+    private val titles = java.util.concurrent.ConcurrentHashMap<String, String>()
+
+    fun title(videoId: String): String? = titles[videoId]
+
     fun isRunning(videoId: String) = progress.containsKey(videoId)
 
     fun start(context: Context, track: Track) {
@@ -59,7 +64,10 @@ object Downloads {
         if (isRunning(track.id)) return@withContext false
         val app = context.applicationContext
         failures.remove(track.id)
+        titles[track.id] = track.title
         progress[track.id] = 0f
+        // Свернут приложение — скачивание не встанет
+        DownloadService.hold(app)
         try {
             val dir = Cache.dir(app)
             val go = { fast: Boolean, jar: File? ->
@@ -120,6 +128,7 @@ object Downloads {
             false
         } finally {
             progress.remove(track.id)
+            titles.remove(track.id)
             version++
         }
     }

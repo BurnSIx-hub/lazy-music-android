@@ -4,6 +4,10 @@ English version of CHANGES.md: the "What's new?" card shows it when the app
 is in English. Same versions, same order; a version missing here falls back
 to the Russian section.
 
+## 1.12.7
+
+- Fixed music downloads stopping when the app was minimized. While a download is running, the notification panel shows what’s downloading and how much is left
+
 ## 1.12.6
 
 - Lyrics with line highlighting are now found more often, for example for music videos with the song title in quotes

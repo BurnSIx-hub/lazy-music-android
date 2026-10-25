@@ -185,6 +185,16 @@ object Offline {
     /** Идёт передышка после серии неудач — её можно прервать. */
     @Volatile private var resting = false
 
+    /** Сколько осталось скачать в этот заход — для уведомления [DownloadService]. */
+    @Volatile var left = 0
+        private set
+
+    /**
+     * Очередь качает (или отдыхает секунды между треками). Долгая передышка
+     * после неудач — не работа: службу с уведомлением ради неё не держим.
+     */
+    val busy: Boolean get() = worker?.isActive == true && !resting
+
     /**
      * Докачать недостающее — если не качает уже. again — прервать
      * передышку: человек сам включил плейлист или сеть сменилась.
@@ -200,6 +210,7 @@ object Offline {
             var pause = BREAK_MS
             while (true) {
                 val todo = wanted()
+                left = todo.size
                 if (todo.isEmpty()) {
                     waitingWifi = false
                     break
@@ -230,6 +241,6 @@ object Offline {
                 }
                 delay(PAUSE_MS)
             }
-        }
+        }.also { job -> job.invokeOnCompletion { if (worker === job) left = 0 } }
     }
 }
