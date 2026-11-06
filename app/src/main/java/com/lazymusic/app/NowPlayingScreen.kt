@@ -76,11 +76,20 @@ fun NowPlayingScreen(
     onRemoveDownload: (Track) -> Unit,
     onAddToPlaylist: (Track) -> Unit,
     onLike: (Track) -> Unit,
-    onArtist: (String) -> Unit
+    onArtist: (String) -> Unit,
+    last: Track?,
+    onContinue: () -> Unit
 ) {
     val track = host.current
     if (track == null) {
-        EmptyHint(tr("Ничего не играет.\nНайдите трек в поиске или откройте свой плейлист."))
+        // Холодный запуск: очередь пуста — предлагаем дослушать прошлое
+        if (last != null) {
+            Column(Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                ContinueCard(last, last.id in cachedIds, onContinue, onArtist)
+            }
+        } else {
+            EmptyHint(tr("Ничего не играет.\nНайдите трек в поиске или откройте свой плейлист."))
+        }
         return
     }
 

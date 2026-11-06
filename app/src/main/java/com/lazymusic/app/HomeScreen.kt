@@ -49,11 +49,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
 /**
- * Начальный экран: с чего продолжить.
+ * Начальный экран: поиск, подборка, недавнее.
  *
- * Открывается первым намеренно. «Сейчас играет» при холодном запуске пусто
- * и выглядит сломанным — а человек, открывший плеер, чаще всего хочет
- * дослушать то, на чём остановился.
+ * Карточка «Продолжить» отсюда переехала на «Играет сейчас» (2026-11-06,
+ * как на ПК): там её и ждут, а пустая вкладка при холодном запуске
+ * выглядела сломанной. См. [ContinueCard].
  */
 @Composable
 fun HomeScreen(
@@ -93,9 +93,6 @@ fun HomeScreen(
         return
     }
 
-    val last = recent.first()
-    val lastIsCurrent = last.id == currentId
-
     LazyColumn(Modifier.fillMaxSize()) {
         item {
             search()
@@ -104,64 +101,6 @@ fun HomeScreen(
                 Spacer(Modifier.height(4.dp))
                 WrappedCard(wrapped, onWrapped)
             }
-            Text(
-                text = if (lastIsCurrent && playing) tr("Сейчас играет") else tr("Продолжить"),
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp)
-            )
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp)
-                    .clickable { onPlayRecent(0) }
-            ) {
-                Row(
-                    modifier = Modifier.padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Artwork(last.artworkUrl, 96)
-                    Spacer(Modifier.width(14.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            text = last.title,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        if (last.artist.isNotBlank()) {
-                            Text(
-                                text = last.artist,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.clickable { onArtist(last.artist) }
-                            )
-                        }
-                        if (last.id in cachedIds) {
-                            Text(
-                                text = tr("скачан"),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    }
-                    Spacer(Modifier.width(8.dp))
-                    FilledIconButton(
-                        onClick = { onPlayRecent(0) },
-                        modifier = Modifier.size(52.dp)
-                    ) {
-                        Icon(
-                            if (lastIsCurrent && playing) Icons.Default.Pause
-                            else Icons.Default.PlayArrow,
-                            contentDescription = if (lastIsCurrent && playing) tr("Пауза") else tr("Играть"),
-                            modifier = Modifier.size(28.dp)
-                        )
-                    }
-                }
-            }
-
             if (picks.isNotEmpty() || picksBusy) {
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(start = 16.dp, top = 20.dp, end = 4.dp),
@@ -204,7 +143,7 @@ fun HomeScreen(
                 }
             }
 
-            if (recent.size > 1) {
+            if (recent.isNotEmpty()) {
                 Text(
                     text = tr("Недавнее"),
                     style = MaterialTheme.typography.titleSmall,
@@ -213,18 +152,89 @@ fun HomeScreen(
             }
         }
 
-        itemsIndexed(recent.drop(1), key = { _, t -> t.id }) { index, track ->
+        itemsIndexed(recent, key = { _, t -> t.id }) { index, track ->
             TrackRow(
                 track = track,
                 isCurrent = track.id == currentId,
                 cached = track.id in cachedIds,
-                // drop(1) сдвинул нумерацию — возвращаем её обратно
-                onPlay = { onPlayRecent(index + 1) },
+                onPlay = { onPlayRecent(index) },
                 onMenu = { onTrackMenu(track) }
             )
         }
 
         item { Spacer(Modifier.height(16.dp)) }
+    }
+}
+
+/**
+ * «Продолжить» — последний прослушанный трек. Стоит на «Играет сейчас»,
+ * когда очередь пуста (холодный запуск): нажатие играет «Недавнее» с него.
+ */
+@Composable
+fun ContinueCard(
+    last: Track,
+    cached: Boolean,
+    onPlay: () -> Unit,
+    onArtist: (String) -> Unit
+) {
+    Column {
+            Text(
+                text = tr("Продолжить"),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp)
+            )
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp)
+                    .clickable(onClick = onPlay)
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Artwork(last.artworkUrl, 96)
+                    Spacer(Modifier.width(14.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            text = last.title,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        if (last.artist.isNotBlank()) {
+                            Text(
+                                text = last.artist,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.clickable { onArtist(last.artist) }
+                            )
+                        }
+                        if (cached) {
+                            Text(
+                                text = tr("скачан"),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    FilledIconButton(
+                        onClick = onPlay,
+                        modifier = Modifier.size(52.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.PlayArrow,
+                            contentDescription = tr("Играть"),
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+                }
+            }
+
     }
 }
 

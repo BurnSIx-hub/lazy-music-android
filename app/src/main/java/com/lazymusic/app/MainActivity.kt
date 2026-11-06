@@ -741,9 +741,14 @@ class MainActivity : ComponentActivity() {
                         selected = tab == Tab.NOW,
                         onClick = { goNow() },
                         icon = { Icon(Icons.Default.PlayCircle, contentDescription = null) },
-                        // Короче, чем заголовок: «Играет сейчас» в нижнем меню
-                        // переносится на две строки
-                        label = { Text(tr("Сейчас"), maxLines = 1) }
+                        // «Играет сейчас», как заголовок (просьба 2026-11-06);
+                        // шрифт помельче — обычным переносится на две строки
+                        label = {
+                            Text(
+                                tr("Играет сейчас"), maxLines = 1, softWrap = false,
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                        }
                     )
                     NavigationBarItem(
                         selected = tab == Tab.LIBRARY,
@@ -816,7 +821,9 @@ class MainActivity : ComponentActivity() {
                     onRemoveDownload = ::removeDownload,
                     onAddToPlaylist = { menuTrack = it },
                     onLike = ::like,
-                    onArtist = { artist = it }
+                    onArtist = { artist = it },
+                    last = recent.firstOrNull(),
+                    onContinue = { playRecent(0) }
                 )
 
                 Tab.LIBRARY -> LibraryScreen(
@@ -953,7 +960,7 @@ class MainActivity : ComponentActivity() {
         // Кэш мог пополниться, пока играли или качали
         LaunchedEffect(host.current?.id, Downloads.version) { refreshCache() }
 
-        // Заиграло другое — «Продолжить» на Главной показывает его, как на ПК
+        // Заиграло другое — «Недавнее» и «Продолжить» показывают его, как на ПК
         LaunchedEffect(host.current?.id) { recent = Settings.recentTracks() }
     }
 
