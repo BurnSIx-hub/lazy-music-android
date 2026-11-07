@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -25,6 +26,7 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Podcasts
 import androidx.compose.material.icons.filled.Refresh
@@ -35,12 +37,14 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.Button
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -83,7 +87,7 @@ fun PodcastsScreen(
 
     BackHandler(enabled = opened != null) { opened = null }
 
-    val channel = opened?.let { id -> Podcasts.channels.firstOrNull { it.id == id } }
+    val channel = opened?.let { id -> Podcasts.channel(id) }
     if (channel != null) {
         key(channel.id) {
             ChannelDetail(channel, currentId, playing, onPlay, onToggle, onBack = { opened = null }, onNote = onNote)
@@ -115,15 +119,21 @@ fun PodcastsScreen(
                 }
             }
             IconButton(onClick = { adding = true }, enabled = !busy) {
-                Icon(Icons.Default.Add, contentDescription = tr("Добавить канал"))
+                Icon(Icons.Default.Link, contentDescription = tr("Открыть по ссылке"))
             }
         }
 
-        if (Podcasts.channels.isEmpty()) {
-            EmptyHint(tr("Здесь будут каналы YouTube, которые вы слушаете как подкасты.\nНажмите «плюс» и вставьте ссылку на канал."))
+        val progress = Podcasts.progress
+        // Выпуски по ссылке — тоже в «Продолжить слушать»
+        val all = Podcasts.channels.flatMap { ch -> ch.episodes.map { ch to it } } +
+            Podcasts.singles.mapNotNull { s ->
+                Podcasts.channelOf(s.e.id)?.takeIf { !Podcasts.isSubscribed(it.id) }
+                    ?.let { ch -> ch.episodes.firstOrNull { it.id == s.e.id }?.let { ch to it } }
+            }
+        val hasStarted = all.any { (_, e) -> progress[e.id]?.let { !it.done && it.p > 0 } == true }
+        if (Podcasts.channels.isEmpty() && !hasStarted) {
+            EmptyHint(tr("Здесь будут каналы YouTube, которые вы слушаете как подкасты.\nНажмите на значок ссылки и вставьте ссылку на канал или выпуск."))
         } else {
-            val progress = Podcasts.progress
-            val all = Podcasts.channels.flatMap { ch -> ch.episodes.map { ch to it } }
             val started = all.filter { (_, e) -> progress[e.id]?.let { !it.done && it.p > 0 } == true }
                 .sortedByDescending { (_, e) -> progress[e.id]?.at ?: 0 }.take(8)
             val fresh = all.filter { (_, e) -> Podcasts.isNew(e) }.sortedByDescending { (_, e) -> e.added }.take(20)
@@ -144,7 +154,7 @@ fun PodcastsScreen(
                         }
                     }
                 }
-                item { Section(tr("Каналы")) }
+                if (Podcasts.channels.isNotEmpty()) item { Section(tr("Каналы")) }
                 items(Podcasts.channels, key = { "c" + it.id }) { ch ->
                     val n = ch.episodes.count(Podcasts::isNew)
                     ListItem(
@@ -162,9 +172,10 @@ fun PodcastsScreen(
     }
 
     if (adding) {
-        AddChannelDialog(
+        OpenLinkDialog(
             onDismiss = { adding = false },
-            onAdded = { id -> adding = false; opened = id }
+            onChannel = { id -> adding = false; opened = id },
+            onEpisode = { ch, i -> adding = false; onPlay(Podcasts.tracks(ch), i) }
         )
     }
 }
@@ -288,6 +299,8 @@ private fun ChannelDetail(
         else eps.indices.filter { Find.matches(Track(eps[it].id, eps[it].title), find) }
     }
     val busy = Podcasts.refreshing == ch.id || Podcasts.refreshing == Podcasts.ALL
+    val mine = Podcasts.isSubscribed(ch.id)
+    if (!mine) LaunchedEffect(ch.id) { Podcasts.loadGuest(ch) }
 
     Column(Modifier.fillMaxSize()) {
         Row(
@@ -302,7 +315,8 @@ private fun ChannelDetail(
                 Text(
                     episodeCount(eps.size),
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1
                 )
             }
             // Играть — с первого недослушанного: новые сверху, как на YouTube
@@ -310,21 +324,35 @@ private fun ChannelDetail(
                 val first = eps.indexOfFirst { Podcasts.progress[it.id]?.done != true }.coerceAtLeast(0)
                 if (eps.isNotEmpty()) onPlay(Podcasts.tracks(ch), first)
             }) { Icon(Icons.Default.PlayArrow, contentDescription = tr("Играть")) }
-            IconButton(onClick = {
-                scope.launch {
-                    val added = Podcasts.refresh(only = ch)
-                    onNote(when {
-                        added == null -> tr("Канал не обновился")
-                        added > 0 -> tr("Новых выпусков: {N}", "N" to added)
-                        else -> tr("Новых выпусков нет")
-                    })
+            if (mine) {
+                IconButton(onClick = {
+                    scope.launch {
+                        val added = Podcasts.refresh(only = ch)
+                        onNote(when {
+                            added == null -> tr("Канал не обновился")
+                            added > 0 -> tr("Новых выпусков: {N}", "N" to added)
+                            else -> tr("Новых выпусков нет")
+                        })
+                    }
+                }, enabled = !busy) {
+                    if (busy) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                    else Icon(Icons.Default.Refresh, contentDescription = tr("Проверить новые выпуски"))
                 }
-            }, enabled = !busy) {
-                if (busy) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-                else Icon(Icons.Default.Refresh, contentDescription = tr("Проверить новые выпуски"))
-            }
-            IconButton(onClick = { confirmDelete = true }) {
-                Icon(Icons.Default.Delete, contentDescription = tr("Отписаться"))
+                IconButton(onClick = { confirmDelete = true }) {
+                    Icon(Icons.Default.Delete, contentDescription = tr("Отписаться"))
+                }
+            } else if (busy || Podcasts.guestLoading == ch.id) {
+                CircularProgressIndicator(Modifier.padding(horizontal = 14.dp).size(20.dp), strokeWidth = 2.dp)
+            } else {
+                Button(onClick = {
+                    scope.launch {
+                        val why = Podcasts.subscribe(ch)
+                        onNote(if (why == null) tr("Канал «{канал}» добавлен", "канал" to ch.name)
+                            else tr("Не удалось добавить канал: {причина}", "причина" to why))
+                    }
+                }, contentPadding = PaddingValues(horizontal = 14.dp), modifier = Modifier.padding(start = 4.dp, end = 4.dp)) {
+                    Text(tr("Подписаться"), maxLines = 1)
+                }
             }
         }
 
@@ -375,20 +403,24 @@ private fun ChannelDetail(
 }
 
 @Composable
-private fun AddChannelDialog(onDismiss: () -> Unit, onAdded: (String) -> Unit) {
+private fun OpenLinkDialog(
+    onDismiss: () -> Unit,
+    onChannel: (String) -> Unit,
+    onEpisode: (Podcasts.Channel, Int) -> Unit
+) {
     var link by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val busy = Podcasts.refreshing == Podcasts.ADD
     AlertDialog(
         onDismissRequest = { if (!busy) onDismiss() },
-        title = { Text(tr("Добавить канал")) },
+        title = { Text(tr("Открыть по ссылке")) },
         text = {
             Column {
                 OutlinedTextField(
                     value = link,
                     onValueChange = { link = it; error = null },
-                    label = { Text(tr("Ссылка на канал YouTube")) },
+                    label = { Text(tr("Ссылка на канал или выпуск YouTube")) },
                     singleLine = true,
                     enabled = !busy,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
@@ -403,12 +435,14 @@ private fun AddChannelDialog(onDismiss: () -> Unit, onAdded: (String) -> Unit) {
         confirmButton = {
             TextButton(enabled = link.isNotBlank() && !busy, onClick = {
                 scope.launch {
-                    val why = Podcasts.add(link)
-                    if (why == null) Podcasts.lastAdded?.let(onAdded)
-                    else error = tr("Не удалось добавить канал: {причина}", "причина" to why)
+                    when (val r = Podcasts.open(link)) {
+                        is Podcasts.Opened.Page -> onChannel(r.channelId)
+                        is Podcasts.Opened.Play -> onEpisode(r.channel, r.index)
+                        is Podcasts.Opened.Failed -> error = tr("Не удалось открыть ссылку: {причина}", "причина" to r.why)
+                    }
                 }
             }) {
-                if (busy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else Text(tr("Добавить"))
+                if (busy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else Text(tr("Открыть"))
             }
         },
         dismissButton = { TextButton(onClick = onDismiss, enabled = !busy) { Text(tr("Отмена")) } }

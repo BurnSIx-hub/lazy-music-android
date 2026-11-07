@@ -60,4 +60,14 @@ class PodcastsTest {
         assertNull(Podcasts.channelBase("https://example.com/@GEOSHOW"))
         assertNull(Podcasts.channelBase("https://www.youtube.com/channel/bad"))
     }
+
+    @Test
+    fun episodeLine() {
+        val s = Podcasts.parseEpisode("IAB_XLOxI0s", "ИСКАЛИ\u00016104.0\u0001UCyjf5CxCNEc9ALYlalBiKDQ\u0001GEO\u0001GEO\n")!!
+        assertEquals("UCyjf5CxCNEc9ALYlalBiKDQ", s.chId)
+        assertEquals("GEO", s.chName)
+        assertEquals(6104, s.e.dur)
+        assertEquals("ИСКАЛИ", s.e.title)
+        assertNull(Podcasts.parseEpisode("x", "a\u0001NA\u0001NA\u0001NA\u0001NA"))
+    }
 }

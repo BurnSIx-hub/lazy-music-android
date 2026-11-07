@@ -68,12 +68,39 @@ object Podcasts {
 
     data class Progress(val p: Int, val d: Int, val done: Boolean, val at: Long)
 
+    /** Выпуск, открытый по ссылке без подписки на канал. */
+    data class Single(val chId: String, val chName: String, val chUrl: String, val e: Episode)
+
+    /** Что вышло из ссылки: страница канала, выпуск для игры или ошибка. */
+    sealed interface Opened {
+        data class Page(val channelId: String) : Opened
+        data class Play(val channel: Channel, val index: Int) : Opened
+        data class Failed(val why: String) : Opened
+    }
+
     var channels by mutableStateOf<List<Channel>>(emptyList()); private set
     var progress by mutableStateOf<Map<String, Progress>>(emptyMap()); private set
     private var removed: Map<String, Long> = emptyMap()
     var speed by mutableStateOf(1f); private set
     /** Что сейчас обновляется: id канала, ALL или ADD; null — ничего. */
     var refreshing by mutableStateOf<String?>(null); private set
+
+    /**
+     * Каналы без подписки: открытые по ссылке и те, откуда выпуски по ссылке.
+     * Список выпусков у них целиком, только если id в [guestsFull]; иначе в нём
+     * лишь открытые по ссылке, а целиком он берётся, когда откроют страницу.
+     */
+    var guests by mutableStateOf<Map<String, Channel>>(emptyMap()); private set
+    var guestsFull by mutableStateOf<Set<String>>(emptySet()); private set
+    var guestLoading by mutableStateOf<String?>(null); private set
+    private val guestFailed = HashSet<String>()
+    /**
+     * Выпуски без подписки, свежие сверху. Помнятся только на телефоне
+     * (`podcast-singles.json`, последние 30), с компьютером сводится лишь
+     * место в них — как на ПК.
+     */
+    var singles by mutableStateOf<List<Single>>(emptyList()); private set
+    private const val SINGLES_MAX = 30
 
     const val ALL = "*"
     const val ADD = "+"
@@ -88,10 +115,56 @@ object Podcasts {
     fun load(context: Context) {
         if (loaded) return
         loaded = true
+        runCatching { loadSingles(context) }
+            .onFailure { Log.w(TAG, "выпуски по ссылке не прочитались: ${it.message}") }
         val f = file(context)
+        if (f.exists()) {
+            runCatching { apply(JSONObject(f.readText())) }
+                .onFailure { Log.w(TAG, "подкасты не прочитались: ${it.message}") }
+        }
+        reindex()
+    }
+
+    private fun singlesFile(context: Context) = File(context.filesDir, "podcast-singles.json")
+
+    private fun loadSingles(context: Context) {
+        val f = singlesFile(context)
         if (!f.exists()) return
-        runCatching { apply(JSONObject(f.readText())) }
-            .onFailure { Log.w(TAG, "подкасты не прочитались: ${it.message}") }
+        singles = JSONArray(f.readText()).objects().mapNotNull { o ->
+            val e = o.optJSONObject("e") ?: return@mapNotNull null
+            val chId = o.optString("chId")
+            if (!chId.startsWith("UC") || e.optString("id").isBlank()) return@mapNotNull null
+            Single(chId, o.optString("chName"), o.optString("chUrl"),
+                Episode(e.optString("id"), e.optString("title"), e.optInt("dur"), 0))
+        }
+        for (s in singles) addToGuest(s)
+    }
+
+    private fun saveSingles() {
+        val arr = JSONArray()
+        for (s in singles) {
+            arr.put(JSONObject().put("chId", s.chId).put("chName", s.chName).put("chUrl", s.chUrl)
+                .put("e", JSONObject().put("id", s.e.id).put("title", s.e.title).put("dur", s.e.dur)))
+        }
+        runCatching { singlesFile(App.instance).writeText(arr.toString()) }
+            .onFailure { Log.w(TAG, "выпуски по ссылке не записались: ${it.message}") }
+    }
+
+    private fun addToGuest(s: Single): Channel {
+        val have = guests[s.chId] ?: Channel(s.chId, s.chName, s.chUrl, "", 0, 0, emptyList())
+        val ch = if (have.episodes.any { it.id == s.e.id }) have else have.copy(episodes = have.episodes + s.e.copy(added = 0))
+        guests = guests + (s.chId to ch)
+        return ch
+    }
+
+    /**
+     * Запомнить выпуск без подписки — иначе после перезапуска он заиграл бы
+     * как обычный трек, без места и скорости.
+     */
+    private fun keepSingle(ch: Channel, e: Episode) {
+        if (isSubscribed(ch.id)) return
+        singles = (listOf(Single(ch.id, ch.name, ch.url, e.copy(added = 0))) + singles.filter { it.e.id != e.id }).take(SINGLES_MAX)
+        saveSingles()
     }
 
     @Synchronized
@@ -101,8 +174,17 @@ object Podcasts {
     }
 
     private fun reindex() {
-        byEpisode = channels.flatMap { ch -> ch.episodes.map { it.id to ch } }.toMap()
+        val map = HashMap<String, Channel>()
+        for (ch in guests.values) for (e in ch.episodes) map[e.id] = ch
+        // Подписка важнее: её выпуски перекрывают гостевые
+        for (ch in channels) for (e in ch.episodes) map[e.id] = ch
+        byEpisode = map
     }
+
+    fun isSubscribed(id: String) = channels.any { it.id == id }
+
+    /** Канал по id — с подпиской или без. */
+    fun channel(id: String): Channel? = channels.firstOrNull { it.id == id } ?: guests[id]
 
     fun isEpisode(id: String?): Boolean = id != null && id in byEpisode
     fun channelOf(id: String?): Channel? = id?.let { byEpisode[it] }
@@ -268,22 +350,73 @@ object Podcasts {
         }
     }
 
-    /**
-     * Подписаться по ссылке. @return null — вышло (или канал уже есть: тогда
-     * его id в [lastAdded]), иначе текст для человека.
-     */
-    suspend fun add(link: String): String? {
+    /** Ссылка из «Открыть по ссылке»: канал — его страница, ролик — играть. */
+    suspend fun open(link: String): Opened {
         refreshing = ADD
         try {
-            val ch = fetch(link)
-            val had = channels.firstOrNull { it.id == ch.id }
-            lastAdded = ch.id
-            if (had != null) return null
+            val vid = Links.videoIdFrom(link)
+            if (vid == null) {
+                val c = fetch(link)
+                if (!isSubscribed(c.id)) withContext(Dispatchers.Main) { setGuestFull(c) }
+                return Opened.Page(c.id)
+            }
+            byEpisode[vid]?.let { ch -> return Opened.Play(ch, ch.episodes.indexOfFirst { it.id == vid }) }
+            val s = fetchEpisode(vid)
+            val ch = withContext(Dispatchers.Main) {
+                val ch = addToGuest(s)
+                reindex()
+                keepSingle(ch, s.e)
+                ch
+            }
+            Diag.i("подкаст: выпуск по ссылке с канала ${s.chId}")
+            return Opened.Play(ch, ch.episodes.indexOfFirst { it.id == vid })
+        } catch (e: IOException) {
+            return Opened.Failed(e.message ?: e.javaClass.simpleName)
+        } finally {
+            refreshing = null
+        }
+    }
+
+    /** Полный список канала без подписки; выпуски по ссылке, которых в нём нет, остаются. */
+    private fun setGuestFull(c: Channel) {
+        val have = guests[c.id]
+        val extra = have?.episodes.orEmpty().filter { e -> c.episodes.none { it.id == e.id } }
+        guests = guests + (c.id to c.copy(episodes = c.episodes.map { it.copy(added = 0) } + extra))
+        guestsFull = guestsFull + c.id
+        reindex()
+    }
+
+    /** Открыли страницу канала без подписки — взять его выпуски целиком. */
+    suspend fun loadGuest(ch: Channel) {
+        if (ch.id in guestsFull || ch.id in guestFailed || guestLoading != null || isSubscribed(ch.id)) return
+        guestLoading = ch.id
+        try {
+            val c = fetch(ch.url)
+            withContext(Dispatchers.Main) { setGuestFull(c) }
+        } catch (e: IOException) {
+            guestFailed += ch.id
+            Diag.w("подкаст: канал ${ch.id} не открылся: ${e.message}")
+        } finally {
+            guestLoading = null
+        }
+    }
+
+    /** Подписаться на канал, открытый по ссылке. @return null — вышло, иначе текст для человека. */
+    suspend fun subscribe(ch: Channel): String? {
+        refreshing = ch.id
+        try {
+            val c = if (ch.id in guestsFull) ch else fetch(ch.url)
             val now = System.currentTimeMillis()
             withContext(Dispatchers.Main) {
-                change { channels = channels + ch.copy(added = now, checked = now, episodes = ch.episodes.map { it.copy(added = 0) }) }
+                change {
+                    channels = channels + c.copy(added = now, checked = now, episodes = c.episodes.map { it.copy(added = 0) })
+                    guests = guests - ch.id
+                    // Без подписки остаются только выпуски по ссылке, которых
+                    // нет на вкладке «Видео» (эфиры, Shorts)
+                    for (s in singles) if (s.chId == ch.id && c.episodes.none { it.id == s.e.id }) addToGuest(s)
+                }
             }
-            Diag.i("подкаст: подписка на канал ${ch.id}, выпусков ${ch.episodes.size}")
+            Diag.i("подкаст: подписка на канал ${c.id} со страницы, выпусков ${c.episodes.size}")
             return null
         } catch (e: IOException) {
             return e.message ?: e.javaClass.simpleName
@@ -292,8 +425,6 @@ object Podcasts {
         }
     }
 
-    /** Канал, на который подписались (или который уже был) последним. */
-    var lastAdded: String? = null; private set
 
     fun remove(ch: Channel) = change {
         channels = channels.filter { it.id != ch.id }
@@ -415,6 +546,39 @@ object Podcasts {
         parse(json) ?: throw IOException(tr("Канал не нашёлся"))
     }
 
+    /**
+     * Один выпуск по ссылке на ролик — с каналом, откуда он. Как `episode`
+     * в extract.rs на ПК.
+     */
+    private suspend fun fetchEpisode(id: String): Single = withContext(Dispatchers.IO) {
+        val request = YoutubeDLRequest("https://www.youtube.com/watch?v=$id").apply {
+            addOption("--no-playlist")
+            addOption("--skip-download")
+            addOption("--no-warnings")
+            addOption("--socket-timeout", "10")
+            addOption("--extractor-args", "youtube:lang=${if (Lang.english) "en" else "ru"}")
+            addOption("-O", listOf("title", "duration", "channel_id", "channel", "uploader").joinToString(SEP) { "%($it)s" })
+            YtLogin.jarIfNeeded(App.instance)?.let { addOption("--cookies", it.absolutePath) }
+        }
+        val response = try {
+            Engine.extracting { YoutubeDL.getInstance().execute(request) }
+        } catch (t: Throwable) {
+            throw IOException(tr("YouTube не ответил: {причина}", "причина" to (t.message?.lineSequence()?.lastOrNull { it.isNotBlank() }?.take(200))), t)
+        }
+        parseEpisode(id, response.out) ?: throw IOException(tr("Канал не нашёлся"))
+    }
+
+    private const val SEP = "\u0001"
+
+    /** Строка `-O` выпуска: название, длина, канал. */
+    fun parseEpisode(id: String, text: String): Single? {
+        val parts = text.trim().split(SEP).map { it.trim() }
+        fun field(i: Int) = parts.getOrNull(i)?.takeIf { it.isNotEmpty() && it != "NA" }
+        val ch = field(2)?.takeIf { it.startsWith("UC") } ?: return null
+        val dur = field(1)?.toDoubleOrNull()?.toInt()?.coerceAtLeast(0) ?: 0
+        return Single(ch, field(3) ?: field(4) ?: ch, "https://www.youtube.com/channel/$ch", Episode(id, field(0) ?: id, dur, 0))
+    }
+
     private fun parse(v: JSONObject): Channel? {
         val id = v.optString("channel_id").ifBlank { v.optString("id") }
         if (!id.startsWith("UC")) return null
@@ -494,6 +658,9 @@ object Podcasts {
             val ch = channelOf(id) ?: return
             val pos = (player.currentPosition / 1000).toInt()
             if (pos < 1) return
+            if (!isSubscribed(ch.id) && singles.none { it.e.id == id }) {
+                ch.episodes.firstOrNull { it.id == id }?.let { e -> main.post { keepSingle(ch, e) } }
+            }
             val dur = (player.duration.takeIf { it > 0 }?.div(1000)?.toInt())
                 ?: ch.episodes.firstOrNull { it.id == id }?.dur ?: 0
             val was = progress[id]
