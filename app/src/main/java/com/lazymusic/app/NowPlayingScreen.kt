@@ -101,6 +101,9 @@ fun NowPlayingScreen(
         host.refreshPosition()
     }
 
+    // Выпуск подкаста: вместо лайков, текста и радио — перемотка и скорость
+    val episode = Podcasts.channelOf(track.id)
+
     // Пока тянем ползунок, показываем своё значение, а не то, что у плеера
     var dragging by remember { mutableStateOf(false) }
     // Шторка с текстом песни — по кнопке «Текст»
@@ -137,21 +140,23 @@ fun NowPlayingScreen(
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             center = true,
-                            modifier = Modifier.clickable { onArtist(track.artist) }
+                            modifier = if (episode != null) Modifier else Modifier.clickable { onArtist(track.artist) }
                         )
                     }
                 }
                 // 👎 слева, сердце справа — как в плеере на ПК
-                DislikeButton(
-                    track = track,
-                    host = host,
-                    modifier = Modifier.align(Alignment.CenterStart).padding(start = 8.dp)
-                )
-                LikeButton(
-                    track = track,
-                    onLike = onLike,
-                    modifier = Modifier.align(Alignment.CenterEnd).padding(end = 8.dp)
-                )
+                if (episode == null) {
+                    DislikeButton(
+                        track = track,
+                        host = host,
+                        modifier = Modifier.align(Alignment.CenterStart).padding(start = 8.dp)
+                    )
+                    LikeButton(
+                        track = track,
+                        onLike = onLike,
+                        modifier = Modifier.align(Alignment.CenterEnd).padding(end = 8.dp)
+                    )
+                }
             }
 
             // ── Действия над треком ──────────────────────────────────────────
@@ -169,6 +174,18 @@ fun NowPlayingScreen(
                     .padding(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                if (episode != null) {
+                    ActionPill(text = "−15", onClick = { host.seekTo((host.position - 15_000).coerceAtLeast(0)) }, icon = null)
+                    ActionPill(text = "+30", onClick = {
+                        val end = host.duration.takeIf { it > 0 } ?: Long.MAX_VALUE
+                        host.seekTo((host.position + 30_000).coerceAtMost(end - 1_000))
+                    }, icon = null)
+                    ActionPill(text = tr("Скорость") + " " + Podcasts.speedLabel(), onClick = Podcasts::cycleSpeed, icon = null)
+                    ActionPill(text = tr("Поделиться"), onClick = { shareTrack(context, track) }) {
+                        Icon(Icons.Default.Share, contentDescription = null)
+                    }
+                    return@Row
+                }
                 // Первой, как в YouTube Music: текст открывают чаще остального
                 ActionPill(text = tr("Текст"), onClick = { lyricsOpen = true }) {
                     Icon(Icons.Default.FormatQuote, contentDescription = null)
@@ -313,7 +330,8 @@ fun NowPlayingScreen(
                 isCurrent = item.id == track.id,
                 cached = item.id in cachedIds,
                 onPlay = { host.play(host.queue, index) },
-                onMenu = { onAddToPlaylist(item) }
+                // Выпуск подкаста — не музыка: меню с плейлистами ему ни к чему
+                onMenu = if (Podcasts.isEpisode(item.id)) null else { { onAddToPlaylist(item) } }
             )
         }
 
@@ -331,7 +349,8 @@ private fun ActionPill(
     text: String,
     onClick: () -> Unit,
     enabled: Boolean = true,
-    icon: @Composable () -> Unit
+    // null — только надпись: «−15», «+30» у выпусков подкаста
+    icon: (@Composable () -> Unit)?
 ) {
     Surface(
         onClick = onClick,
@@ -341,11 +360,13 @@ private fun ActionPill(
         contentColor = MaterialTheme.colorScheme.onSurface
     ) {
         Row(
-            modifier = Modifier.height(40.dp).padding(start = 14.dp, end = 18.dp),
+            modifier = Modifier.height(40.dp).padding(start = if (icon != null) 14.dp else 18.dp, end = 18.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(Modifier.size(20.dp), contentAlignment = Alignment.Center) { icon() }
-            Spacer(Modifier.width(8.dp))
+            if (icon != null) {
+                Box(Modifier.size(20.dp), contentAlignment = Alignment.Center) { icon() }
+                Spacer(Modifier.width(8.dp))
+            }
             Text(text, style = MaterialTheme.typography.labelLarge, maxLines = 1)
         }
     }

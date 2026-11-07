@@ -27,6 +27,7 @@ class App : Application() {
         // чего не добыть ссылкой
         Import.fromFiles(this)
         Likes.load()
+        Podcasts.load(this)
         Taste.load()
         Eq.load()
         Recommend.load()

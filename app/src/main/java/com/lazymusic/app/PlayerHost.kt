@@ -288,5 +288,7 @@ fun requeueAround(player: Player, tracks: List<Track>): Boolean {
 fun formatTime(ms: Long): String {
     if (ms <= 0) return "0:00"
     val total = ms / 1000
+    // Выпуски подкастов идут часами: 1:41:44, а не 101:44
+    if (total >= 3600) return "${total / 3600}:${(total / 60 % 60).toString().padStart(2, '0')}:${(total % 60).toString().padStart(2, '0')}"
     return "${total / 60}:${(total % 60).toString().padStart(2, '0')}"
 }

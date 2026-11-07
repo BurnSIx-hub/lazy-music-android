@@ -219,6 +219,8 @@ object Hub {
                 val listened = Listening.revision
                 if (listened != sentListening) body.put("listening", Listening.own(App.instance))
                 body.put("listeningTag", Listening.othersTag(App.instance))
+                // Подписки на подкасты и место в выпусках
+                body.put("podcasts", Podcasts.forSync())
                 val (status, json) = post(body) ?: run {
                     if (reason == MANUAL) note = tr("Компьютер не отвечает — он включён и в той же сети Wi-Fi?")
                     return false
@@ -227,6 +229,11 @@ object Hub {
                     200 -> {
                         if (body.has("listening")) sentListening = listened
                         json?.optJSONObject("listening")?.let { Listening.setOthers(App.instance, it) }
+                        // Сводятся сами по себе, без ревизии библиотеки: правила
+                        // такие, что повторная сводка ничего не портит
+                        json?.optJSONObject("podcasts")?.let { p ->
+                            withContext(Dispatchers.Main) { Podcasts.fromHub(p) }
+                        }
                         if (Settings.libraryRevision != revision) return@repeat
                         val lib = json?.optJSONObject("library") ?: return false
                         val changed = Settings.replaceLibrary(lib)

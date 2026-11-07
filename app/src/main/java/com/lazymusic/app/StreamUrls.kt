@@ -285,7 +285,9 @@ object StreamUrls {
         val expires = expiryOf(url)
         val note = describe(url, expires, now)
         val seconds = (SystemClock.elapsedRealtime() - started) / 100 / 10.0
-        Diag.i("$videoId — ссылка добыта за $seconds с: $note")
+        // Формат — с дорожкой: у части роликов есть озвучка нейросетью
+        // («English (US) dubbed-auto»), а играть надо оригинал
+        Diag.i("$videoId — ссылка добыта за $seconds с: $note; формат ${info.format}")
 
         // Сеть успела смениться, пока работал yt-dlp, — ссылка привязана
         // к прежнему адресу. Отдаём её просившему (вдруг адрес тот же),

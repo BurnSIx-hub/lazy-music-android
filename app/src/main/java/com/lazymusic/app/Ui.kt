@@ -176,7 +176,7 @@ fun TrackRow(
     isCurrent: Boolean,
     cached: Boolean,
     onPlay: () -> Unit,
-    onMenu: () -> Unit
+    onMenu: (() -> Unit)?
 ) {
     val accent = MaterialTheme.colorScheme.primary
     Row(
@@ -211,8 +211,10 @@ fun TrackRow(
                 )
             }
         }
-        IconButton(onClick = onMenu) {
-            Icon(Icons.Default.MoreVert, contentDescription = tr("Ещё"))
+        if (onMenu != null) {
+            IconButton(onClick = onMenu) {
+                Icon(Icons.Default.MoreVert, contentDescription = tr("Ещё"))
+            }
         }
     }
 }
@@ -274,8 +276,11 @@ fun MiniPlayer(host: PlayerHost, onLike: (Track) -> Unit, onOpen: () -> Unit) {
                         )
                     }
                 }
-                DislikeButton(track, host)
-                LikeButton(track, onLike)
+                // Выпуск подкаста — не музыка: ни 👎, ни 👍
+                if (!Podcasts.isEpisode(track.id)) {
+                    DislikeButton(track, host)
+                    LikeButton(track, onLike)
+                }
                 IconButton(onClick = host::toggle) {
                     Icon(
                         if (host.playing) Icons.Default.Pause else Icons.Default.PlayArrow,

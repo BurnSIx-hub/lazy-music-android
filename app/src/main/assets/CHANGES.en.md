@@ -4,6 +4,10 @@ English version of CHANGES.md: the "What's new?" card shows it when the app
 is in English. Same versions, same order; a version missing here falls back
 to the Russian section.
 
+## 1.13.0
+
+- Added a "Podcasts" tab: subscribe to YouTube channels, episodes resume where you left off, with playback speed and 15/30-second skips. Subscriptions and listening progress sync with the computer
+
 ## 1.12.8
 
 - Moved "Continue" from "Home" to the "Now playing" tab and renamed the tab: it used to be called "Now"

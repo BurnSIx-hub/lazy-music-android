@@ -55,6 +55,7 @@ class PlaybackService : MediaSessionService() {
     private var session: MediaSession? = null
     private var recovery: Recovery? = null
     private var listening: Listening.Tracker? = null
+    private var podcasts: Podcasts.Tracker? = null
 
     private val likeCommand = SessionCommand(ACTION_LIKE, Bundle.EMPTY)
 
@@ -120,6 +121,13 @@ class PlaybackService : MediaSessionService() {
 
         // Что и сколько слушали — для «Итогов года»
         listening = Listening.Tracker(this, player).also { player.addListener(it) }
+
+        // Подкасты: место в выпуске, своя скорость, продолжение с места
+        Podcasts.load(this)
+        podcasts = Podcasts.Tracker(player).also {
+            player.addListener(it)
+            Podcasts.tracker = it
+        }
 
         // А ссылку для следующего трека добудут ещё раньше
         val prefetcher = Prefetcher(this, player)
@@ -216,6 +224,9 @@ class PlaybackService : MediaSessionService() {
         Likes.onChange = null
         listening?.stop()
         listening = null
+        podcasts?.stop()
+        podcasts = null
+        Podcasts.tracker = null
         recovery?.stop()
         recovery = null
         session?.run {

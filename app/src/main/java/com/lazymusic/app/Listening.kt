@@ -130,6 +130,8 @@ object Listening {
     @Synchronized
     fun add(context: Context, item: MediaItem, ms: Long, count: Boolean) {
         if (ms <= 0 && !count) return
+        // Подкасты — не музыка: в «Итоги года» не идут
+        if (Podcasts.isEpisode(item.mediaId)) return
         val now = LocalDateTime.now()
         val years = data(context).getJSONObject("years")
         val y = years.optJSONObject(now.year.toString()) ?: emptyYear()

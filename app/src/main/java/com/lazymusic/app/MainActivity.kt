@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Podcasts
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -180,7 +181,7 @@ class MainActivity : ComponentActivity() {
     private var cachedTracks by mutableStateOf(emptyList<Track>())
     private var recent by mutableStateOf(emptyList<Track>())
 
-    private enum class Tab { HOME, NOW, LIBRARY, SEARCH }
+    private enum class Tab { HOME, NOW, LIBRARY, PODCASTS, SEARCH }
 
     private enum class Job { SEARCH, MORE, PLAYLIST, ENGINE }
 
@@ -288,6 +289,8 @@ class MainActivity : ComponentActivity() {
         refreshWrapped()
         // Подборка собирается полминуты, поэтому только когда протухла
         Recommend.refreshIfStale(this)
+        // Новые выпуски подкастов — раз в шесть часов, в фоне
+        Podcasts.refreshIfStale()
         // Свежий yt-dlp: сам процесс живёт сутками, так что «при запуске»
         // для него значит мало — проверяем и при каждом возвращении на экран
         Engine.refreshIfDue(this)
@@ -735,32 +738,33 @@ class MainActivity : ComponentActivity() {
                             Recommend.refreshIfStale(this@MainActivity)
                         },
                         icon = { Icon(Icons.Default.Home, contentDescription = null) },
-                        label = { Text(tr("Главная")) }
+                        label = { NavLabel(tr("Главная")) }
                     )
                     NavigationBarItem(
                         selected = tab == Tab.NOW,
                         onClick = { goNow() },
                         icon = { Icon(Icons.Default.PlayCircle, contentDescription = null) },
-                        // «Играет сейчас», как заголовок (просьба 2026-11-06);
-                        // шрифт помельче — обычным переносится на две строки
-                        label = {
-                            Text(
-                                tr("Играет сейчас"), maxLines = 1, softWrap = false,
-                                style = MaterialTheme.typography.labelSmall
-                            )
-                        }
+                        // «Играет сейчас», как заголовок (просьба 2026-11-06).
+                        // С пятой вкладкой в строку не входит — две строки по словам
+                        label = { NavLabel(tr("Играет сейчас")) }
                     )
                     NavigationBarItem(
                         selected = tab == Tab.LIBRARY,
                         onClick = { goTab(Tab.LIBRARY); revision++ },
                         icon = { Icon(Icons.Default.LibraryMusic, contentDescription = null) },
-                        label = { Text(tr("Плейлисты")) }
+                        label = { NavLabel(tr("Плейлисты")) }
+                    )
+                    NavigationBarItem(
+                        selected = tab == Tab.PODCASTS,
+                        onClick = { goTab(Tab.PODCASTS) },
+                        icon = { Icon(Icons.Default.Podcasts, contentDescription = null) },
+                        label = { NavLabel(tr("Подкасты")) }
                     )
                     NavigationBarItem(
                         selected = tab == Tab.SEARCH,
                         onClick = { goTab(Tab.SEARCH) },
                         icon = { Icon(Icons.Default.Search, contentDescription = null) },
-                        label = { Text(tr("Поиск")) }
+                        label = { NavLabel(tr("Поиск")) }
                     )
                 }
             }
@@ -835,6 +839,14 @@ class MainActivity : ComponentActivity() {
                     onTrackMenu = { menuTrack = it },
                     onChanged = { revision++ },
                     onImportLikes = ::openYtMusic
+                )
+
+                Tab.PODCASTS -> PodcastsScreen(
+                    currentId = host.current?.id.orEmpty(),
+                    playing = host.playing,
+                    onPlay = { list, index -> host.play(list, index); goNow() },
+                    onToggle = host::toggle,
+                    onNote = { Plaques.toast(it) }
                 )
 
                 Tab.SEARCH -> SearchScreen(
@@ -968,6 +980,7 @@ class MainActivity : ComponentActivity() {
         Tab.HOME -> "Lazy Music"
         Tab.NOW -> tr("Играет сейчас")
         Tab.LIBRARY -> tr("Плейлисты")
+        Tab.PODCASTS -> tr("Подкасты")
         Tab.SEARCH -> tr("Поиск")
     }
 
@@ -1320,3 +1333,21 @@ class MainActivity : ComponentActivity() {
 
 /** Идентификатор ролика YouTube — 11 знаков. */
 private val VIDEO_ID = Regex("[A-Za-z0-9_-]{11}")
+
+/**
+ * Подпись вкладки внизу. Вкладок пять, и на S23 каждой достаётся 72 dp:
+ * «Играет сейчас» в строку не входило, а «Плейлисты» обычным шрифтом
+ * переносились по буквам. Шрифт мелкий, места — две строки у всех, чтобы
+ * значки стояли на одной высоте, а перенос шёл только по словам.
+ */
+@androidx.compose.runtime.Composable
+private fun NavLabel(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.labelSmall,
+        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+        lineHeight = androidx.compose.ui.unit.TextUnit(13f, androidx.compose.ui.unit.TextUnitType.Sp),
+        minLines = 2,
+        maxLines = 2
+    )
+}

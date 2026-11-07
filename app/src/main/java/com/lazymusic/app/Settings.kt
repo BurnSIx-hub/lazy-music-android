@@ -516,6 +516,8 @@ object Settings {
      */
     fun rememberPlayed(track: Track) {
         if (track.id.isBlank()) return
+        // Выпуски подкастов — не в «Недавнее»: у них своё «Продолжить слушать»
+        if (Podcasts.isEpisode(track.id)) return
         val kept = JSONArray()
         kept.put(track.json())
         val old = array(KEY_RECENT)
