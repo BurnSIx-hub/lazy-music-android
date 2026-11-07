@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.DownloadDone
 import androidx.compose.material.icons.filled.FormatQuote
@@ -35,6 +36,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
@@ -109,6 +111,15 @@ fun NowPlayingScreen(
     // Шторка с текстом песни — по кнопке «Текст»
     var lyricsOpen by remember { mutableStateOf(false) }
     if (lyricsOpen) LyricsSheet(host) { lyricsOpen = false }
+    var sleepOpen by remember { mutableStateOf(false) }
+    if (sleepOpen) SleepDialog { sleepOpen = false }
+    // Таймер сна — у музыки и у выпусков одинаково
+    val sleepPill: @Composable () -> Unit = {
+        ActionPill(text = if (Sleep.on) Sleep.left() else tr("Таймер сна"), onClick = { sleepOpen = true }) {
+            Icon(Icons.Default.Bedtime, contentDescription = null,
+                tint = if (Sleep.on) MaterialTheme.colorScheme.primary else LocalContentColor.current)
+        }
+    }
     var dragValue by remember { mutableStateOf(0f) }
 
     LazyColumn(
@@ -181,6 +192,7 @@ fun NowPlayingScreen(
                         host.seekTo((host.position + 30_000).coerceAtMost(end - 1_000))
                     }, icon = null)
                     ActionPill(text = tr("Скорость") + " " + Podcasts.speedLabel(), onClick = Podcasts::cycleSpeed, icon = null)
+                    sleepPill()
                     ActionPill(text = tr("Поделиться"), onClick = { shareTrack(context, track) }) {
                         Icon(Icons.Default.Share, contentDescription = null)
                     }
@@ -233,6 +245,8 @@ fun NowPlayingScreen(
                 ActionPill(text = tr("В плейлист"), onClick = { onAddToPlaylist(track) }) {
                     Icon(Icons.Default.PlaylistAdd, contentDescription = null)
                 }
+
+                sleepPill()
 
                 ActionPill(text = tr("Поделиться"), onClick = { shareTrack(context, track) }) {
                     Icon(Icons.Default.Share, contentDescription = null)

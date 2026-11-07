@@ -70,4 +70,36 @@ class PodcastsTest {
         assertEquals("ИСКАЛИ", s.e.title)
         assertNull(Podcasts.parseEpisode("x", "a\u0001NA\u0001NA\u0001NA\u0001NA"))
     }
+
+    @Test
+    fun booksAddAndRemove() {
+        fun book(id: String, added: Long) = JSONObject().put("id", id).put("kind", "playlist").put("title", id)
+            .put("added", added).put("chapters", JSONArray())
+        fun bookIds(o: JSONObject) = (0 until o.getJSONArray("books").length()).map { o.getJSONArray("books").getJSONObject(it).getString("id") }
+        val pc = state().put("books", JSONArray().put(book("PLa", 100)))
+        // Старый ПК книг не знает — книги телефона остаются
+        assertEquals(listOf("PLa"), bookIds(Podcasts.merge(pc, state())))
+        val phone = state(removed = JSONObject().put("PLa", 150)).put("books", JSONArray().put(book("v:x", 200)))
+        val m = Podcasts.merge(pc, phone)
+        assertEquals(listOf("v:x"), bookIds(m))
+        assertEquals(m.toString(), Podcasts.merge(m, m).toString())
+    }
+
+    @Test
+    fun bookJson() {
+        val pl = JSONObject("""{"id":"PLHBacZjYq-jzdYEmx3AqWRhkybUrIL8tv","title":"Пикник","channel":"Автор","entries":[
+            {"id":"Ry7YK30UM9U","title":"1/4","duration":5809.0},{"id":"Ry7YK30UM9U","title":"ещё раз"},
+            {"id":"7Sf_NWI845Q","title":"[Deleted video]"},{"id":"M0kVPAwV6gs","title":"3/4","duration":null}]}""")
+        val b = Podcasts.parseBookPlaylist(pl)!!
+        assertEquals(listOf("Ry7YK30UM9U", "M0kVPAwV6gs"), b.chapters.map { it.id })
+        assertEquals("Автор", b.author)
+        val v = JSONObject("""{"title":"Книга","channel":"Чтец","duration":15522.0,"chapters":[
+            {"start_time":0.0,"end_time":2344.0,"title":"Часть 1"},{"start_time":2344.0,"end_time":4598.0,"title":"Часть 2"}]}""")
+        val vb = Podcasts.parseBookVideo("dOTwNOA9Ld8", v)
+        assertEquals("v:dOTwNOA9Ld8", vb.id)
+        assertEquals(2344 to 2254, vb.chapters[1].start to vb.chapters[1].dur)
+        val one = Podcasts.parseBookVideo("Ix_X_U7aGUc", JSONObject("""{"title":"Без глав","duration":15398.0,"chapters":null}"""))
+        assertEquals(1, one.chapters.size)
+        assertEquals(15398, one.chapters[0].dur)
+    }
 }

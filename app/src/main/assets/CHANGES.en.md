@@ -4,6 +4,10 @@ English version of CHANGES.md: the "What's new?" card shows it when the app
 is in English. Same versions, same order; a version missing here falls back
 to the Russian section.
 
+## 1.14.0
+
+- Added audiobooks to "Podcasts": a playlist or a long video with chapters, and a book resumes where you left off. Added a sleep timer: pause in 15–90 minutes or at the end of the track or chapter
+
 ## 1.13.1
 
 - Added an "Open link" button to "Podcasts": a channel link opens its page with a "Subscribe" button, an episode link starts playing it right away
