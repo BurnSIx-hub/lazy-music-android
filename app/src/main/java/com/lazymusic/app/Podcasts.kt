@@ -15,6 +15,8 @@ import com.yausername.youtubedl_android.YoutubeDLRequest
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -93,6 +95,11 @@ object Podcasts {
 
     /** Сколько слушать всего и прослушано, с; глава, где остановились. */
     data class BookState(val total: Int, val heard: Int, val at: Int, val done: Boolean, val started: Boolean)
+
+    /** Находка поиска: плейлист, длинный ролик или канал. Как `Found` в extract.rs. */
+    data class Found(val id: String, val title: String, val author: String, val art: String, val dur: Int)
+
+    data class SearchResult(val playlists: List<Found>, val videos: List<Found>, val channels: List<Found>)
 
     /** Выпуск, открытый по ссылке без подписки на канал. */
     data class Single(val chId: String, val chName: String, val chUrl: String, val e: Episode)
@@ -759,6 +766,54 @@ object Podcasts {
         val json = runCatching { JSONObject(out.substring(out.indexOf('{'))) }.getOrNull()
             ?: throw IOException(tr("yt-dlp вернул непонятный ответ"))
         return parseBookVideo(id, json)
+    }
+
+    // ── Поиск ───────────────────────────────────────────────────────────────
+    // Страница поиска YouTube с фильтром: плейлисты (книги), ролики длиннее
+    // 20 минут и каналы — три захода разом, как `pod_search` на ПК.
+
+    private const val SP_PLAYLISTS = "EgIQAw%3D%3D"
+    private const val SP_LONG_VIDEOS = "EgQQARgC"
+    private const val SP_CHANNELS = "EgIQAg%3D%3D"
+
+    suspend fun search(q: String): SearchResult = coroutineScope {
+        val query = java.net.URLEncoder.encode(q.trim(), "UTF-8")
+        fun page(sp: String, n: Int) = async(Dispatchers.IO) {
+            runCatching {
+                val out = ytJson("https://www.youtube.com/results?search_query=$query&sp=$sp", "-J", "--flat-playlist", "--playlist-end", n.toString())
+                JSONObject(out.substring(out.indexOf('{')))
+            }
+        }
+        val pl = page(SP_PLAYLISTS, 12)
+        val vi = page(SP_LONG_VIDEOS, 12)
+        val ch = page(SP_CHANNELS, 6)
+        val all = listOf(pl.await(), vi.await(), ch.await())
+        // Пусто только если упали все три: остальное показываем
+        if (all.all { it.isFailure }) throw (all[0].exceptionOrNull() as? IOException ?: IOException(all[0].exceptionOrNull()?.message))
+        SearchResult(
+            all[0].getOrNull()?.let { parseFound(it, "playlist") }.orEmpty(),
+            all[1].getOrNull()?.let { parseFound(it, "video") }.orEmpty(),
+            all[2].getOrNull()?.let { parseFound(it, "channel") }.orEmpty()
+        )
+    }
+
+    /** Как `parse_found` в extract.rs. */
+    fun parseFound(v: JSONObject, kind: String): List<Found> = v.optJSONArray("entries").objects().mapNotNull { e ->
+        val id = e.optString("id")
+        val ok = when (kind) {
+            "playlist" -> bookPlaylistOk(id)
+            "video" -> id.length == 11
+            else -> id.startsWith("UC")
+        }
+        if (!ok) return@mapNotNull null
+        val thumb = e.optJSONArray("thumbnails").objects().lastOrNull()?.optString("url").orEmpty()
+        val art = when {
+            kind == "video" -> Radio.thumbnailUrl(id)
+            thumb.startsWith("//") -> "https:$thumb"
+            else -> thumb
+        }
+        Found(id, e.optString("title").trim(), e.optString("channel").ifBlank { e.optString("uploader") }.trim(), art,
+            e.optDouble("duration", 0.0).let { if (it.isNaN()) 0 else it.toInt() }.coerceAtLeast(0))
     }
 
     /** Как `parse_book_playlist` в extract.rs. */

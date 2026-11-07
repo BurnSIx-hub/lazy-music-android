@@ -102,4 +102,17 @@ class PodcastsTest {
         assertEquals(1, one.chapters.size)
         assertEquals(15398, one.chapters[0].dur)
     }
+
+    @Test
+    fun foundJson() {
+        val pl = JSONObject("""{"entries":[{"id":"PLHBacZjYq-jzdYEmx3AqWRhkybUrIL8tv","title":"Пикник","channel":"Автор",
+            "thumbnails":[{"url":"https://i.ytimg.com/vi/x/hq720.jpg"}]},{"id":"RDxyzxyzxyzxyz","title":"микс"}]}""")
+        val f = Podcasts.parseFound(pl, "playlist")
+        assertEquals(1, f.size)
+        assertEquals("https://i.ytimg.com/vi/x/hq720.jpg", f[0].art)
+        val c = Podcasts.parseFound(JSONObject("""{"entries":[{"id":"UCWOApiC6TJ5PJphFmrmJ6bw","title":"Канал","thumbnails":[{"url":"//yt3.ggpht.com/a"}]}]}"""), "channel")
+        assertEquals("https://yt3.ggpht.com/a", c[0].art)
+        val v = Podcasts.parseFound(JSONObject("""{"entries":[{"id":"IAD-ANTvs9Y","title":"Книга","duration":7307.0}]}"""), "video")
+        assertEquals(7307, v[0].dur)
+    }
 }

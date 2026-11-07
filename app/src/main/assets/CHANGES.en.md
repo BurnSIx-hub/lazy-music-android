@@ -4,6 +4,10 @@ English version of CHANGES.md: the "What's new?" card shows it when the app
 is in English. Same versions, same order; a version missing here falls back
 to the Russian section.
 
+## 1.14.1
+
+- Added search to "Podcasts": your own books and channels right away, and YouTube on request, with books, long videos and channels
+
 ## 1.14.0
 
 - Added audiobooks to "Podcasts": a playlist or a long video with chapters, and a book resumes where you left off. Added a sleep timer: pause in 15–90 minutes or at the end of the track or chapter

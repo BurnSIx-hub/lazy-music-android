@@ -3,6 +3,7 @@ package com.lazymusic.app
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -65,6 +66,19 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
+
+/**
+ * Поиск во вкладке: строка и найденное на YouTube живут дольше экрана —
+ * открыл книгу из найденного, вернулся, а список на месте. Как на ПК.
+ */
+private object PodFind {
+    var q by mutableStateOf("")
+    var asked by mutableStateOf("")
+    var busy by mutableStateOf(false)
+    var result by mutableStateOf<Podcasts.SearchResult?>(null)
+    var error by mutableStateOf<String?>(null)
+    var seq = 0
+}
 
 /** Со скольких выпусков у канала появляется строка поиска — как у плейлиста. */
 private const val FIND_FROM = 10
@@ -134,6 +148,47 @@ fun PodcastsScreen(
             }
         }
 
+        val focus = LocalFocusManager.current
+        val runFind = {
+            val q = PodFind.q.trim()
+            if (q.isNotEmpty()) {
+                focus.clearFocus()
+                val my = ++PodFind.seq
+                PodFind.asked = q
+                PodFind.busy = true
+                PodFind.result = null
+                PodFind.error = null
+                scope.launch {
+                    val r = runCatching { Podcasts.search(q) }
+                    // Новый поиск, пока шёл прежний, побеждает
+                    if (my == PodFind.seq) {
+                        PodFind.result = r.getOrNull()
+                        PodFind.error = r.exceptionOrNull()?.message
+                        PodFind.busy = false
+                    }
+                }
+            }
+            Unit
+        }
+        OutlinedTextField(
+            value = PodFind.q,
+            onValueChange = { PodFind.q = it },
+            placeholder = { Text(tr("Поиск книг и подкастов"), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+            trailingIcon = {
+                if (PodFind.q.isNotEmpty()) {
+                    IconButton(onClick = { PodFind.q = ""; PodFind.result = null; PodFind.error = null; PodFind.asked = ""; focus.clearFocus() }) {
+                        Icon(Icons.Default.Close, contentDescription = tr("Закрыть"))
+                    }
+                }
+            },
+            singleLine = true,
+            shape = RoundedCornerShape(28.dp),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+            keyboardActions = KeyboardActions(onSearch = { runFind() }),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)
+        )
+
         val progress = Podcasts.progress
         // Выпуски по ссылке и главы книг — тоже в «Продолжить слушать»
         val shelf = Podcasts.books.map(Podcasts::shelfOf)
@@ -146,8 +201,10 @@ fun PodcastsScreen(
         // Ролик может прийти дважды (книга и выпуск по ссылке) — ключи списка должны быть разными
         val all = raw.distinctBy { it.second.id }
         val hasStarted = all.any { (_, e) -> progress[e.id]?.let { !it.done && it.p > 0 } == true }
-        if (Podcasts.channels.isEmpty() && Podcasts.books.isEmpty() && !hasStarted) {
-            EmptyHint(tr("Здесь будут каналы YouTube, которые вы слушаете как подкасты, и аудиокниги.\nНажмите на значок ссылки и вставьте ссылку на канал, выпуск или книгу."))
+        if (PodFind.q.isNotBlank()) {
+            FindResults(all, currentId, playing, onToggle, onPlay, onOpen = { opened = it }, onNote = onNote, runFind = runFind)
+        } else if (Podcasts.channels.isEmpty() && Podcasts.books.isEmpty() && !hasStarted) {
+            EmptyHint(tr("Здесь будут каналы YouTube, которые вы слушаете как подкасты, и аудиокниги.\nНайдите книгу поиском или нажмите на значок ссылки и вставьте ссылку на канал, выпуск или книгу."))
         } else {
             val started = all.filter { (_, e) -> progress[e.id]?.let { !it.done && it.p > 0 } == true }
                 .sortedByDescending { (_, e) -> progress[e.id]?.at ?: 0 }.take(8)
@@ -658,5 +715,156 @@ private fun ChapterRow(
             )
         }
         if (current && here && playing) Icon(Icons.Default.PlayArrow, contentDescription = null, tint = accent)
+    }
+}
+
+/** Найденное: у себя — сразу по мере набора, на YouTube — по «Найти». */
+@Composable
+private fun FindResults(
+    all: List<Pair<Podcasts.Channel, Podcasts.Episode>>,
+    currentId: String,
+    playing: Boolean,
+    onToggle: () -> Unit,
+    onPlay: (List<Track>, Int) -> Unit,
+    onOpen: (String) -> Unit,
+    onNote: (String) -> Unit,
+    runFind: () -> Unit
+) {
+    val scope = rememberCoroutineScope()
+    val q = PodFind.q.trim()
+    val mineBooks = Podcasts.books.filter { Find.matches(Track(it.id, it.title, it.author), q) }
+    val mineChannels = Podcasts.channels.filter { Find.matches(Track(it.id, it.name), q) }
+    val mineEps = all.filter { (ch, e) -> !Podcasts.isBook(ch) && Find.matches(Track(e.id, e.title, ch.name), q) }.take(20)
+    val r = PodFind.result?.takeIf { PodFind.asked == q }
+    val busy = Podcasts.refreshing != null
+    // Открыть найденное — как ссылку: плейлист книгой, ролик выпуском, канал страницей
+    val open = { link: String, asBook: Boolean ->
+        if (!busy) scope.launch {
+            when (val res = Podcasts.open(link, asBook)) {
+                is Podcasts.Opened.Page -> onOpen(res.channelId)
+                is Podcasts.Opened.BookPage -> onOpen(res.bookId)
+                is Podcasts.Opened.Play -> onPlay(Podcasts.tracks(res.channel), res.index)
+                is Podcasts.Opened.Failed -> onNote(tr("Не удалось открыть ссылку: {причина}", "причина" to res.why))
+            }
+        }
+        Unit
+    }
+
+    LazyColumn(Modifier.fillMaxSize()) {
+        if (busy) item { LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) }
+        if (mineBooks.isNotEmpty()) {
+            item { Section(tr("Мои книги")) }
+            items(mineBooks, key = { "mb" + it.id }) { b ->
+                ListItem(
+                    headlineContent = { Text(b.title, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis) },
+                    supportingContent = { Text(bookInfo(b, Podcasts.bookState(b)), maxLines = 1) },
+                    leadingContent = { Cover(b.art, 96) },
+                    modifier = Modifier.clickable { onOpen(b.id) }
+                )
+            }
+        }
+        if (mineChannels.isNotEmpty()) {
+            item { Section(tr("Мои каналы")) }
+            items(mineChannels, key = { "mc" + it.id }) { ch ->
+                ListItem(
+                    headlineContent = { Text(ch.name, fontWeight = FontWeight.Medium) },
+                    supportingContent = { Text(episodeCount(ch.episodes.size)) },
+                    leadingContent = { Avatar(ch.avatar, 48) },
+                    modifier = Modifier.clickable { onOpen(ch.id) }
+                )
+            }
+        }
+        if (mineEps.isNotEmpty()) {
+            item { Section(tr("Мои выпуски")) }
+            items(mineEps, key = { "me" + it.second.id }) { (ch, e) ->
+                EpisodeRow(ch, e, currentId, playing, showChannel = true, onToggle = onToggle) {
+                    onPlay(Podcasts.tracks(ch), ch.episodes.indexOf(e))
+                }
+            }
+        }
+        when {
+            PodFind.busy -> item {
+                Row(Modifier.fillMaxWidth().padding(24.dp), verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                    Spacer(Modifier.width(12.dp))
+                    Text(tr("Ищу на YouTube…"), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            PodFind.error != null && PodFind.asked == q -> item {
+                EmptyHint(tr("Поиск не удался: {причина}", "причина" to PodFind.error))
+            }
+            r == null -> item {
+                Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.Center) {
+                    Button(onClick = runFind) {
+                        Icon(Icons.Default.Search, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text(tr("Найти на YouTube"))
+                    }
+                }
+            }
+            else -> {
+                if (r.playlists.isNotEmpty()) {
+                    item { Section(tr("Книги на YouTube")) }
+                    items(r.playlists, key = { "fp" + it.id }) { f ->
+                        FoundRow(f, f.author, Podcasts.books.any { it.id == f.id }, onClick = {
+                            open("https://www.youtube.com/playlist?list=${f.id}", true)
+                        })
+                    }
+                }
+                if (r.videos.isNotEmpty()) {
+                    item { Section(tr("Длинные ролики")) }
+                    items(r.videos, key = { "fv" + it.id }) { f ->
+                        FoundRow(
+                            f,
+                            listOfNotNull(f.author.ifBlank { null }, f.dur.takeIf { it > 0 }?.let { formatTime(it * 1000L) }).joinToString(" · "),
+                            Podcasts.books.any { it.id == "v:${f.id}" },
+                            onClick = { open("https://youtu.be/${f.id}", false) },
+                            onBook = { open("https://youtu.be/${f.id}", true) }
+                        )
+                    }
+                }
+                if (r.channels.isNotEmpty()) {
+                    item { Section(tr("Каналы на YouTube")) }
+                    items(r.channels, key = { "fc" + it.id }) { f ->
+                        ListItem(
+                            headlineContent = { Text(f.title, fontWeight = FontWeight.Medium) },
+                            supportingContent = { if (Podcasts.isSubscribed(f.id)) Text(tr("подписка есть")) },
+                            leadingContent = { Avatar(f.art, 48) },
+                            modifier = Modifier.clickable { open("https://www.youtube.com/channel/${f.id}", false) }
+                        )
+                    }
+                }
+                if (r.playlists.isEmpty() && r.videos.isEmpty() && r.channels.isEmpty()) {
+                    item { EmptyHint(tr("На YouTube ничего не нашлось.")) }
+                }
+            }
+        }
+        item { Spacer(Modifier.height(12.dp)) }
+    }
+}
+
+/** Находка поиска: нажатие — открыть; у ролика ещё «Книгой». */
+@Composable
+private fun FoundRow(f: Podcasts.Found, info: String, have: Boolean, onClick: () -> Unit, onBook: (() -> Unit)? = null) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(start = 12.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Cover(f.art, 88)
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(f.title, style = MaterialTheme.typography.bodyLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(
+                listOfNotNull(info.ifBlank { null }, if (have) tr("уже в книгах") else null).joinToString(" · "),
+                style = MaterialTheme.typography.bodySmall,
+                color = if (have) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        if (onBook != null && !have) TextButton(onClick = onBook) { Text(tr("Книгой")) }
     }
 }
