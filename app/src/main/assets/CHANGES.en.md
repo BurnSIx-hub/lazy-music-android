@@ -4,6 +4,10 @@ English version of CHANGES.md: the "What's new?" card shows it when the app
 is in English. Same versions, same order; a version missing here falls back
 to the Russian section.
 
+## 1.15.0
+
+- Added a backup for when YouTube asks to confirm you are not a bot: played playlist tracks are saved automatically (on Wi-Fi) and play without YouTube, and if a track is not saved and you are not signed in to YouTube, a copy from SoundCloud plays
+
 ## 1.14.1
 
 - Added search to "Podcasts": your own books and channels right away, and YouTube on request, with books, long videos and channels

@@ -46,7 +46,7 @@ data class Track(
     val artworkUrl: String? = null
 ) {
     /** Обратное к [MediaItem.toTrack]: всё, что там читается, кладётся здесь. */
-    fun toMediaItem(): MediaItem = MediaItem.Builder()
+    fun toMediaItem(): MediaItem = also(Stash::note).let { MediaItem.Builder() }
         .setMediaId(id)
         .setUri("${YtDataSource.SCHEME}:$id")
         .setMediaMetadata(

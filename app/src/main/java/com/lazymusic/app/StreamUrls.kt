@@ -121,6 +121,9 @@ object StreamUrls {
      * дожидаемся её, а не запускаем yt-dlp вторым процессом на тот же ролик.
      */
     fun blocking(context: Context, videoId: String): String {
+        if (Stash.skipYouTube(context)) {
+            throw BotCheck("YouTube просит подтвердить, что не бот — минуту не спрашиваем")
+        }
         fresh(videoId)?.let {
             Log.i(TAG, "$videoId — ссылка была готова заранее")
             return it
@@ -152,7 +155,13 @@ object StreamUrls {
         worker.launch {
             for (id in wanted) {
                 if (fresh(id) != null || running.containsKey(id)) continue
-                if (Cache.find(app, id) != null) continue
+                if (Cache.find(app, id) != null || Stash.find(app, id) != null) continue
+                // Идёт проверка «не бот»: вопрос YouTube её только продлит —
+                // вместо него копия с SoundCloud (Stash)
+                if (Stash.skipYouTube(app)) {
+                    Stash.soundcloudAhead(app, id)
+                    continue
+                }
                 val slot = CompletableDeferred<String>()
                 running[id] = slot
                 try {
@@ -265,11 +274,15 @@ object StreamUrls {
                 val login = YtLogin.botCheck(context)
                 if (login == null) {
                     YtLogin.ask(context)
-                    throw t
+                    Stash.botHit()
+                    throw BotCheck("YouTube просит подтвердить, что не бот: ${Diag.cause(t)}")
                 }
                 Diag.w("$videoId — YouTube просит подтвердить, что не бот; беру со входом")
                 extract(false, login)
             }
+        } catch (bot: BotCheck) {
+            Diag.w("$videoId — yt-dlp не отдал поток: ${bot.message}")
+            throw bot
         } catch (t: Throwable) {
             val why = Diag.chain(t, 4000)
             Diag.w("$videoId — yt-dlp не отдал поток: ${Diag.cause(t)}")
@@ -295,6 +308,7 @@ object StreamUrls {
         if (born == epoch.get()) {
             val until = minOf(now + TTL_MS, (expires ?: Long.MAX_VALUE) - EXPIRY_MARGIN_MS)
             remember(videoId, Entry(url, now, until, note))
+            Stash.keep(context, videoId, url)
         }
         return url
     }

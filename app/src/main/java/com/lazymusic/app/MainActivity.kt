@@ -218,6 +218,8 @@ class MainActivity : ComponentActivity() {
             // Проверка входа для yt-dlp: `--ez bot_mode true` — как будто YouTube
             // потребовал подтвердить, что не бот
             if (intent.getBooleanExtra("bot_mode", false) && YtLogin.botCheck(this) == null) YtLogin.ask(this)
+            // Запас и копия с SoundCloud (Stash): `--ez fake_bot true`
+            if (intent.getBooleanExtra("fake_bot", false)) Stash.fakeBot = true
             // Как выглядит просьба войти: `--ez ask_login true`
             if (intent.getBooleanExtra("ask_login", false)) YtLogin.ask(this)
         }
@@ -1070,6 +1072,25 @@ class MainActivity : ComponentActivity() {
                             mobile = it
                             Settings.offlineOnMobile = it
                             if (it) Offline.kick()
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        // Запас — Stash: сыгранные треки библиотеки на время, когда YouTube не отдаёт звук
+                        var stash by remember { mutableStateOf(Settings.stash) }
+                        var stashBytes by remember { mutableStateOf(Stash.sizeBytes(this@MainActivity)) }
+                        SwitchRow(
+                            tr("Запас на случай сбоев YouTube"),
+                            tr("Сыгранные треки из плейлистов сохраняются сами (по Wi-Fi) и играют, когда YouTube не отдаёт звук. Сейчас: {число} шт., {МБ} МБ",
+                                "число" to Stash.count(this@MainActivity), "МБ" to (stashBytes / (1024 * 1024))),
+                            stash
+                        ) {
+                            stash = it
+                            Settings.stash = it
+                        }
+                        if (stashBytes > 0) {
+                            TextButton(onClick = {
+                                Stash.clear(this@MainActivity)
+                                stashBytes = 0L
+                            }) { Text(tr("Очистить запас")) }
                         }
                         Spacer(Modifier.height(8.dp))
                         Text(

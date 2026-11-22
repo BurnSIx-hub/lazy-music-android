@@ -88,6 +88,8 @@ class YtDataSource private constructor(
         /** Сколько замер ждёт каждого соединения. */
         private const val PROBE_TIMEOUT_MS = 4_000
 
+        private val main = android.os.Handler(android.os.Looper.getMainLooper())
+
         /** Идентификатор из `ytm:<id>`. Берём schemeSpecificPart: host бы понизил регистр. */
         fun videoIdOf(uri: Uri): String? =
             if (uri.scheme == SCHEME) uri.schemeSpecificPart?.trim('/')?.takeIf { it.isNotEmpty() }
@@ -107,6 +109,14 @@ class YtDataSource private constructor(
             }
             return upstream.open(dataSpec.withUri(Uri.fromFile(file)))
         }
+        Stash.find(app, videoId)?.let { file ->
+            if (dataSpec.position == 0L) Diag.i("$videoId — играю из запаса, ${file.length() / 1024} КБ")
+            return upstream.open(dataSpec.withUri(Uri.fromFile(file)))
+        }
+        // Копия с SoundCloud — только пока YouTube отказывает: звук у неё не тот же файл
+        if (Stash.botPaused()) {
+            Stash.findSc(app, videoId)?.let { return upstream.open(dataSpec.withUri(Uri.fromFile(it))) }
+        }
 
         var updated = false
         var switched = false
@@ -121,6 +131,14 @@ class YtDataSource private constructor(
                 } else StreamUrls.blocking(app, videoId)
             } catch (gone: TrackUnavailable) {
                 throw gone
+            } catch (bot: BotCheck) {
+                // YouTube просит подтвердить, что не бот, а входа нет — ищем
+                // тот же трек на SoundCloud (Stash). Не нашёлся — отказ плееру
+                val copy = Stash.soundcloud(app, videoId) ?: throw bot
+                if (dataSpec.position == 0L) {
+                    main.post { Plaques.toast(tr("YouTube не отдаёт звук — играет копия с SoundCloud")) }
+                }
+                return upstream.open(dataSpec.withUri(Uri.fromFile(copy)))
             } catch (e: IOException) {
                 // yt-dlp не справился. Если он просто устарел — обновление это лечит
                 if (updated || !Engine.refreshAfterFailure(app)) throw e

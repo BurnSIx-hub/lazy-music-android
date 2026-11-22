@@ -48,6 +48,14 @@ object Settings {
         get() = prefs.getBoolean(KEY_WIDE_RADIO, true)
         set(value) = prefs.edit().putBoolean(KEY_WIDE_RADIO, value).apply()
 
+    /** Сохранять сыгранные треки библиотеки про запас — см. [Stash]. */
+    var stash: Boolean
+        get() = prefs.getBoolean("stash", true)
+        set(value) = prefs.edit().putBoolean("stash", value).apply()
+
+    /** Предел запаса, МБ. 1 ГБ — около двухсот пятидесяти треков. */
+    val stashMb: Int get() = prefs.getInt("stash_mb", 1024)
+
     /** Язык надписей: "" — как в системе, "ru", "en" — см. [Lang]. */
     var lang: String
         get() = prefs.getString("lang", "").orEmpty()
@@ -375,6 +383,15 @@ object Settings {
         all.put(name, kept)
         save(all)
         Diag.i("плейлист «$name»: $videoId убран, стало ${kept.length()}")
+    }
+
+    /** Трек из любого плейлиста библиотеки или null — см. [Stash]. */
+    fun libraryTrack(videoId: String): Track? {
+        val all = raw()
+        for (name in all.keys()) {
+            all.optJSONArray(name).tracks().firstOrNull { it.id == videoId }?.let { return it }
+        }
+        return null
     }
 
     /** В каких списках этот трек уже лежит — чтобы кнопка «плюс» знала своё состояние. */

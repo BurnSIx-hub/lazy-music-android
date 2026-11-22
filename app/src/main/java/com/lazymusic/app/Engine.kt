@@ -127,6 +127,9 @@ object Engine {
         }
         // Работу сняли — повторять её другим путём некому и незачем
         if (first is InterruptedException || first is java.util.concurrent.CancellationException) throw first
+        // Проверка «не бот» относится к адресу, а не к клиенту: обычный путь
+        // её не обойдёт, а лишний вопрос YouTube только продлит её
+        if (YtLogin.isBotCheck(Diag.chain(first, 4000))) throw first
         Diag.w("$what — быстрый путь не вышел, пробую обычный: ${Diag.cause(first, 200)}")
         return run(false).also { fastFailed() }
     }
