@@ -274,7 +274,9 @@ object StreamUrls {
                 val login = YtLogin.botCheck(context)
                 if (login == null) {
                     YtLogin.ask(context)
-                    Stash.botHit()
+                    // Пауза — только за «not a bot»: «confirm your age» — про один
+                    // ролик 18+, из-за него минуту не играло ничего (до 1.15.1)
+                    if (Diag.chain(t, 4000).contains("not a bot", ignoreCase = true)) Stash.botHit()
                     throw BotCheck("YouTube просит подтвердить, что не бот: ${Diag.cause(t)}")
                 }
                 Diag.w("$videoId — YouTube просит подтвердить, что не бот; беру со входом")
