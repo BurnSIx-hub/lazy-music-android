@@ -31,6 +31,7 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -210,6 +211,17 @@ fun TrackRow(
                     overflow = TextOverflow.Ellipsis
                 )
             }
+        }
+        LaunchedEffect(track.id) { Durations.want(track.id) }
+        val length = Durations.text(track.id)
+        if (length.isNotEmpty()) {
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = length,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1
+            )
         }
         if (onMenu != null) {
             IconButton(onClick = onMenu) {

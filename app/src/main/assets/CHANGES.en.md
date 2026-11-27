@@ -4,6 +4,10 @@ English version of CHANGES.md: the "What's new?" card shows it when the app
 is in English. Same versions, same order; a version missing here falls back
 to the Russian section.
 
+## 1.15.2
+
+- Added track length to search, playlists and the queue
+
 ## 1.15.1
 
 - Fixed: an 18+ video no longer stops other tracks from loading for a minute

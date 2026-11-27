@@ -201,6 +201,7 @@ class PlayerHost(private val context: Context) : Player.Listener {
         val c = controller ?: return
         position = c.currentPosition.coerceAtLeast(0L)
         duration = c.duration.takeIf { it > 0 } ?: 0L
+        c.currentMediaItem?.let { Durations.note(it.toTrack().id, duration) }
     }
 
     // ── Уведомления от плеера ────────────────────────────────────────────────

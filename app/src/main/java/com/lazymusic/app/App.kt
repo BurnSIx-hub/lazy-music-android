@@ -31,6 +31,7 @@ class App : Application() {
         Taste.load()
         Eq.load()
         Recommend.load()
+        Durations.load(this)
         // Импорт из Яндекса, прерванный закрытием, доделывается сам
         YandexImport.restore(this)
         // Плейлисты без сети докачивают недостающее

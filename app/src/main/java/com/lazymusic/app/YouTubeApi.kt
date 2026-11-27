@@ -111,6 +111,26 @@ object YouTubeApi {
             Found(tracks, json.optString("nextPageToken").takeIf { it.isNotBlank() })
         }
 
+    /** Длительности роликов в секундах: до 50 за вызов, 1 единица квоты. */
+    suspend fun durations(ids: List<String>): Map<String, Int> = withContext(Dispatchers.IO) {
+        val url = "$BASE/videos?part=contentDetails&maxResults=$PAGE" +
+            "&id=${enc(ids.joinToString(","))}&key=${enc(requireKey())}"
+        val items = fetch(url).optJSONArray("items")
+        buildMap {
+            for (i in 0 until (items?.length() ?: 0)) {
+                val item = items!!.getJSONObject(i)
+                put(item.optString("id"), isoSeconds(item.optJSONObject("contentDetails")?.optString("duration")))
+            }
+        }
+    }
+
+    /** «PT1H2M3S», «P1DT2H» → секунды. */
+    fun isoSeconds(text: String?): Int {
+        val m = Regex("""^P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$""").find(text.orEmpty()) ?: return 0
+        val (d, h, mi, s) = m.destructured.toList().map { it.toIntOrNull() ?: 0 }
+        return ((d * 24 + h) * 60 + mi) * 60 + s
+    }
+
     /**
      * Идентификатор плейлиста из ссылки или из него самого.
      * Принимает и полный адрес с `?list=`, и голый идентификатор.
